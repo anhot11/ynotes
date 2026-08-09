@@ -47,6 +47,9 @@ object AppCacheManager {
                 FileOutputStream(iconFile).use { fos ->
                     safeBmp.compress(Bitmap.CompressFormat.PNG, 90, fos)
                 }
+                if (safeBmp != bmp) {
+                    safeBmp.recycle()
+                }
                 iconRamCache.put(app.packageName, app.icon)
             } catch (e: Exception) {
                 e.printStackTrace()

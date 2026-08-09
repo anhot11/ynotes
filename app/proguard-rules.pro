@@ -4,3 +4,5 @@
 
 -keep class app.uamo.ynotes.widget.** { *; }
 -keep class androidx.glance.appwidget.** { *; }
+-keep class app.uamo.ynotes.data.** { *; }
+-keep class app.uamo.ynotes.utils.AppCacheManager$CachedApp { *; }

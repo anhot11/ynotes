@@ -53,20 +53,24 @@ fun getAppInfoForPackage(context: Context, packageName: String): AppInfo? {
 }
 
 private fun drawableToImageBitmap(drawable: Drawable): ImageBitmap {
-    if (drawable is BitmapDrawable && drawable.bitmap != null) {
-        val bmp = drawable.bitmap
-        if (bmp.config != Bitmap.Config.HARDWARE) {
-            return bmp.asImageBitmap()
-        }
+    val targetSize = 96
+    val rawBitmap: Bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null && drawable.bitmap.config != Bitmap.Config.HARDWARE) {
+        drawable.bitmap
+    } else {
+        val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else targetSize
+        val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else targetSize
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        bmp
     }
-    
-    val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 100
-    val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 100
-    
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    drawable.setBounds(0, 0, canvas.width, canvas.height)
-    drawable.draw(canvas)
-    
-    return bitmap.asImageBitmap()
+
+    val scaledBitmap = if (rawBitmap.width > targetSize || rawBitmap.height > targetSize) {
+        Bitmap.createScaledBitmap(rawBitmap, targetSize, targetSize, true)
+    } else {
+        rawBitmap
+    }
+
+    return scaledBitmap.asImageBitmap()
 }
