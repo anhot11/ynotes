@@ -1,0 +1,9 @@
+yNotes is a privacy-first, ultra-secure note taking and vault application designed for complete data privacy.
+
+Features:
+- Military-grade encryption (AES-256-GCM and LINX CRYPT)
+- Image Steganography (hide secret encrypted messages inside normal images using DCT)
+- Biometric Home Screen Widgets with 10-second auto-lock and screen-off revocation
+- Safe Zone App Launcher (Reverse mode & shortcut manager)
+- Self-destructing notes with expiration timers
+- 100% Free & Open Source, zero tracking, zero ads, zero internet dependencies

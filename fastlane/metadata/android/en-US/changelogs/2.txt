@@ -1,0 +1,4 @@
+- Initial F-Droid release (v1.0.1)
+- Added DCT Image Steganography
+- Added Biometric Home Screen Widgets with 10s auto-lock
+- Memory & performance optimizations for App Launcher

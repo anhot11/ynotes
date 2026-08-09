@@ -1,0 +1,36 @@
+Categories:
+  - Security
+  - Writing
+License: MIT
+SourceCode: https://github.com/xxnonxxp11/ynotes
+IssueTracker: https://github.com/xxnonxxp11/ynotes/issues
+
+AutoName: yNotes
+Summary: Secure encrypted notes app with image steganography and biometric widgets
+Description: |-
+  yNotes is a privacy-first, ultra-secure note taking application designed for complete data security.
+
+  Features:
+  * Military-grade encryption (AES-256-GCM and LINX CRYPT)
+  * Image Steganography (hide secret encrypted text inside normal images)
+  * Biometric Home Screen Widgets with 10s auto-lock and screen-off revocation
+  * Safe Zone App Launcher (Reverse mode & shortcut manager)
+  * Expiration timers for self-destructing notes
+  * 100% Free & Open Source, zero tracking, zero ads
+
+RepoType: git
+Repo: https://github.com/xxnonxxp11/ynotes.git
+
+Builds:
+  - versionName: 1.0.1
+    versionCode: 2
+    commit: v1.0.1
+    sudo:
+      - sdkmanager "build-tools;34.0.0" "platforms;android-34"
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 1.0.1
+CurrentVersionCode: 2
