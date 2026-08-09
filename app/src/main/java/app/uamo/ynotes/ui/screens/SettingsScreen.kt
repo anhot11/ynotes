@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
 import app.uamo.ynotes.ui.components.CustomIcons
+import app.uamo.ynotes.widget.YNotesWidget
+import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +58,8 @@ fun SettingsScreen(
     
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", android.content.Context.MODE_PRIVATE) }
+    var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
+    val coroutineScope = rememberCoroutineScope()
 
     val biometricManager = remember { BiometricManager.from(context) }
     val canAuthenticate = remember {
@@ -236,6 +242,49 @@ fun SettingsScreen(
                                     checked = isBiometricEnabled,
                                     onCheckedChange = onBiometricToggle,
                                     enabled = canAuthenticate
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Widgets,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Widgets de Zona Segura", 
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        if (isWidgetsEnabled) "Permite ver notas en el widget tras huella (10s)" else "Widgets desactivados", 
+                                        style = MaterialTheme.typography.bodyMedium, 
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = isWidgetsEnabled,
+                                    onCheckedChange = { enabled ->
+                                        isWidgetsEnabled = enabled
+                                        sharedPrefs.edit().putBoolean("WIDGETS_ENABLED", enabled).apply()
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            YNotesWidget().updateAll(context)
+                                        }
+                                    }
                                 )
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))

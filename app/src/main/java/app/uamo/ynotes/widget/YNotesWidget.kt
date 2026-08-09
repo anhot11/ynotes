@@ -45,10 +45,11 @@ import kotlinx.coroutines.flow.firstOrNull
 class YNotesWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val sharedPrefs = context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE)
+        val areWidgetsEnabled = sharedPrefs.getBoolean("WIDGETS_ENABLED", true)
         val isUnlocked = sharedPrefs.getBoolean("widget_unlocked", false)
         val unlockExpiry = sharedPrefs.getLong("widget_unlock_expiry", 0)
         
-        val currentlyUnlocked = isUnlocked && System.currentTimeMillis() < unlockExpiry
+        val currentlyUnlocked = areWidgetsEnabled && isUnlocked && System.currentTimeMillis() < unlockExpiry
         
         val showSafeZoneNotes = sharedPrefs.getBoolean("widget_show_safe_zone", false)
 
@@ -69,6 +70,7 @@ class YNotesWidget : GlanceAppWidget() {
         provideContent {
             GlanceTheme {
                 WidgetContent(
+                    areWidgetsEnabled = areWidgetsEnabled,
                     isUnlocked = currentlyUnlocked,
                     notes = notes,
                     onLockClick = actionRunCallback<LockAction>(),
@@ -81,6 +83,7 @@ class YNotesWidget : GlanceAppWidget() {
 
 @Composable
 fun WidgetContent(
+    areWidgetsEnabled: Boolean,
     isUnlocked: Boolean,
     notes: List<NoteEntity>,
     onLockClick: androidx.glance.action.Action,
@@ -128,7 +131,24 @@ fun WidgetContent(
             }
             
             // Content
-            if (!isUnlocked) {
+            if (!areWidgetsEnabled) {
+                Box(
+                    modifier = GlanceModifier.fillMaxSize().clickable(onUnlockClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Image(
+                            provider = ImageProvider(android.R.drawable.ic_secure),
+                            contentDescription = "Disabled",
+                            modifier = GlanceModifier.size(42.dp).padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = "Widgets desactivados desde la Zona Segura",
+                            style = TextStyle(color = subtextColor, fontSize = 12.sp)
+                        )
+                    }
+                }
+            } else if (!isUnlocked) {
                 Box(
                     modifier = GlanceModifier.fillMaxSize().clickable(onUnlockClick),
                     contentAlignment = Alignment.Center
@@ -140,7 +160,7 @@ fun WidgetContent(
                             modifier = GlanceModifier.size(42.dp).padding(bottom = 8.dp)
                         )
                         Text(
-                            text = "Toca para desbloquear",
+                            text = "Toca para desbloquear (10s)",
                             style = TextStyle(color = textColor, fontSize = 14.sp)
                         )
                     }

@@ -17,13 +17,16 @@ class WidgetAuthActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         
         val sharedPrefs = getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE)
+        val areWidgetsEnabled = sharedPrefs.getBoolean("WIDGETS_ENABLED", true)
+        if (!areWidgetsEnabled) {
+            Toast.makeText(applicationContext, "Los widgets están desactivados en los Ajustes", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
         val isBiometricEnabled = sharedPrefs.getBoolean("BIOMETRIC_ENABLED", true)
         
         if (!isBiometricEnabled) {
-            // If biometrics are disabled globally, we could just unlock it directly,
-            // or we could show a toast that biometrics must be enabled.
-            // Let's assume the user wants it to always ask for biometric if they enabled it.
-            // But if it's disabled, maybe just allow unlock.
             unlockWidget()
             return
         }
@@ -33,7 +36,9 @@ class WidgetAuthActivity : FragmentActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(applicationContext, "Error: $errString", Toast.LENGTH_SHORT).show()
+                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED) {
+                        Toast.makeText(applicationContext, "Error: $errString", Toast.LENGTH_SHORT).show()
+                    }
                     finish()
                 }
 
@@ -60,15 +65,26 @@ class WidgetAuthActivity : FragmentActivity() {
 
     private fun unlockWidget() {
         val sharedPrefs = getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE)
+        val expiryTime = System.currentTimeMillis() + 10_000L // Unlocked for 10 seconds
         sharedPrefs.edit()
             .putBoolean("widget_unlocked", true)
-            // Unlocked for 60 seconds
-            .putLong("widget_unlock_expiry", System.currentTimeMillis() + 60_000)
+            .putLong("widget_unlock_expiry", expiryTime)
             .apply()
 
+        val appContext = applicationContext
         CoroutineScope(Dispatchers.IO).launch {
-            YNotesWidget().updateAll(this@WidgetAuthActivity)
-            finish()
+            YNotesWidget().updateAll(appContext)
+            // Auto-relock after 10 seconds
+            kotlinx.coroutines.delay(10_050L)
+            val currentExpiry = sharedPrefs.getLong("widget_unlock_expiry", 0)
+            if (System.currentTimeMillis() >= currentExpiry) {
+                sharedPrefs.edit()
+                    .putBoolean("widget_unlocked", false)
+                    .putLong("widget_unlock_expiry", 0)
+                    .apply()
+                YNotesWidget().updateAll(appContext)
+            }
         }
+        finish()
     }
 }
