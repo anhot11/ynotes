@@ -35,6 +35,11 @@ android {
                 storePassword = keystorePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
+            } else if (file("local-keystore.jks").exists()) {
+                storeFile = file("local-keystore.jks")
+                storePassword = "password"
+                this.keyAlias = "ynotes"
+                this.keyPassword = "password"
             }
         }
     }
@@ -47,7 +52,7 @@ android {
                 "proguard-rules.pro"
             )
             val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
-            if (!keystoreBase64.isNullOrEmpty()) {
+            if (!keystoreBase64.isNullOrEmpty() || file("local-keystore.jks").exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
@@ -70,6 +75,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
     implementation("androidx.activity:activity-compose:1.8.0")
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")
@@ -80,6 +86,10 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("androidx.compose.material:material-icons-extended")
+    
+    // Glance AppWidget
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+    implementation("androidx.glance:glance-material3:1.1.0")
     
     // Navigation & ViewModel
     implementation("androidx.navigation:navigation-compose:2.7.5")

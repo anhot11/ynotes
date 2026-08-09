@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteDatabase
 import app.uamo.ynotes.data.NoteEntity
+import app.uamo.ynotes.data.applySortOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +32,12 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             MediaManager.cleanOrphanedTempFiles(application)
         }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                noteDao.deleteExpiredNotes()
+                delay(60_000) // check every minute
+            }
+        }
     }
 
     private val _isBooksEnabled = MutableStateFlow(sharedPrefs.getBoolean("isBooksEnabled", false))
@@ -42,14 +49,33 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ──────────────────────────────────────────────
+    // FILTER STATE
+    // ──────────────────────────────────────────────
+    val homeSearchQuery = MutableStateFlow("")
+    val homeSortOrder = MutableStateFlow(app.uamo.ynotes.data.SortOrder.DATE_MODIFIED_DESC)
+    
+    val safeSearchQuery = MutableStateFlow("")
+    val safeSortOrder = MutableStateFlow(app.uamo.ynotes.data.SortOrder.DATE_MODIFIED_DESC)
+
+    // ──────────────────────────────────────────────
     // PUBLIC NOTES — Eagerly cached for instant load
     // ──────────────────────────────────────────────
-    val publicNotes: StateFlow<List<NoteEntity>> = noteDao.getPublicNotes()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,  // Always in memory — instant UI
-            initialValue = emptyList()
-        )
+    val publicNotes: StateFlow<List<NoteEntity>> = combine(
+        noteDao.getPublicNotes(),
+        homeSearchQuery,
+        homeSortOrder
+    ) { notes, query, order ->
+        val filtered = if (query.isBlank()) notes
+        else notes.filter {
+            it.title.contains(query, ignoreCase = true) ||
+            it.body.contains(query, ignoreCase = true)
+        }
+        filtered.applySortOrder(order)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     // ──────────────────────────────────────────────
     // SAFE ZONE — Locked by default, decrypt on unlock
@@ -71,9 +97,20 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     // Public-facing: combines lock state with decrypted cache
     val secretNotes: StateFlow<List<NoteEntity>> = combine(
         _isSafeZoneUnlocked,
-        _decryptedSecretNotes
-    ) { unlocked, notes ->
-        if (unlocked) notes else emptyList()
+        _decryptedSecretNotes,
+        safeSearchQuery,
+        safeSortOrder
+    ) { unlocked, notes, query, order ->
+        if (unlocked) {
+            val filtered = if (query.isBlank()) notes
+            else notes.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                it.body.contains(query, ignoreCase = true)
+            }
+            filtered.applySortOrder(order)
+        } else {
+            emptyList()
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -83,14 +120,27 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     // ──────────────────────────────────────────────
     // DELETED NOTES
     // ──────────────────────────────────────────────
+    private val deletedNotesDecryptedCache = mutableMapOf<String, NoteEntity>()
+
     val deletedNotes: StateFlow<List<NoteEntity>> = noteDao.getDeletedNotes()
         .combine(_isSafeZoneUnlocked) { notes, unlocked ->
             if (unlocked) {
-                val (secretNotes, _) = notes.partition { it.isSecret }
-                val decryptedSecret = withContext(Dispatchers.Default) {
-                    CryptoManager.decryptBatch(secretNotes)
-                }.associateBy { it.id }
-                notes.map { note -> decryptedSecret[note.id] ?: note }
+                val secretNotes = notes.filter { it.isSecret }
+                val toDecrypt = secretNotes.filter { 
+                    !deletedNotesDecryptedCache.containsKey(it.id) || 
+                    deletedNotesDecryptedCache[it.id]?.updatedAt != it.updatedAt 
+                }
+                
+                if (toDecrypt.isNotEmpty()) {
+                    val decrypted = withContext(Dispatchers.Default) {
+                        CryptoManager.decryptBatch(toDecrypt)
+                    }
+                    decrypted.forEach { deletedNotesDecryptedCache[it.id] = it }
+                }
+                
+                notes.map { note -> 
+                    if (note.isSecret) deletedNotesDecryptedCache[note.id] ?: note else note
+                }
             } else {
                 notes.map { note ->
                     if (note.isSecret) {
@@ -153,6 +203,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     fun lockSafeZone() {
         _isSafeZoneUnlocked.value = false
         _decryptedSecretNotes.value = emptyList()  // Wipe from memory
+        deletedNotesDecryptedCache.clear()         // Wipe trash cache from memory
         MediaManager.clearCache()                  // Wipe cached thumbnails from memory
         MediaManager.cleanOrphanedTempFiles(getApplication()) // Wipe residual temp files from disk
         cancelAutoLock()
@@ -196,7 +247,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         bookId: String? = null,
         isBodyHidden: Boolean = false,
         existingCreatedAt: Long? = null,
-        mediaFiles: String = ""
+        mediaFiles: String = "",
+        expiresAt: Long? = null,
+        isWidgetSpecial: Boolean = false
     ) {
         if (title.isBlank() && body.isBlank()) return
         
@@ -224,7 +277,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
                     bookId = bookId,
                     isDeleted = false,
                     isBodyHidden = isBodyHidden,
-                    mediaFiles = mediaFiles
+                    mediaFiles = mediaFiles,
+                    expiresAt = expiresAt,
+                    isWidgetSpecial = isWidgetSpecial
                 )
             )
         }

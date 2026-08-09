@@ -3,7 +3,16 @@ package app.uamo.ynotes.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "notes")
+import androidx.room.Index
+
+@Entity(
+    tableName = "notes",
+    indices = [
+        Index("isSecret"),
+        Index("isDeleted"),
+        Index("bookId")
+    ]
+)
 data class NoteEntity(
     @PrimaryKey val id: String,
     val title: String,
@@ -16,5 +25,7 @@ data class NoteEntity(
     val bookId: String? = null,
     val isDeleted: Boolean = false,
     val isBodyHidden: Boolean = false,
-    val mediaFiles: String = ""
+    val mediaFiles: String = "",
+    val expiresAt: Long? = null,
+    val isWidgetSpecial: Boolean = false
 )

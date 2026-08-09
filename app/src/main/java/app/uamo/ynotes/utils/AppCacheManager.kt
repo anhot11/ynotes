@@ -74,11 +74,23 @@ object AppCacheManager {
                 var icon = iconRamCache.get(c.packageName)
                 if (icon == null) {
                     val iconFile = File(iconsDir, "${c.packageName}.png")
-                    if (!iconFile.exists()) return@mapNotNull null
-                    val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath) ?: return@mapNotNull null
-                    icon = bitmap.asImageBitmap()
-                    iconRamCache.put(c.packageName, icon)
+                    if (iconFile.exists()) {
+                        val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath)
+                        if (bitmap != null) {
+                            icon = bitmap.asImageBitmap()
+                            iconRamCache.put(c.packageName, icon)
+                        }
+                    }
                 }
+                if (icon == null) {
+                    val fallbackApp = getAppInfoForPackage(context, c.packageName)
+                    if (fallbackApp != null) {
+                        icon = fallbackApp.icon
+                        iconRamCache.put(c.packageName, icon)
+                    }
+                }
+                if (icon == null) return@mapNotNull null
+
                 AppInfo(
                     packageName = c.packageName,
                     name = c.name,

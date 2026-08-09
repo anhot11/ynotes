@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,10 @@ import app.uamo.ynotes.ui.theme.AppThemeType
 @Composable
 fun HomeScreen(
     notes: List<NoteEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    sortOrder: SortOrder,
+    onSortOrderChange: (SortOrder) -> Unit,
     safeZonePassword: String,
     safeZoneTriggerMode: Int,
     isBiometricEnabled: Boolean,
@@ -52,32 +57,18 @@ fun HomeScreen(
     onBooksClick: () -> Unit,
     onTrashClick: () -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var sortOrder by remember { mutableStateOf(SortOrder.DATE_MODIFIED_DESC) }
     var showSortMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(searchQuery) {
         if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery == safeZonePassword) {
-            searchQuery = ""
+            onSearchQueryChange("")
             onRequestSafeZone()
         }
     }
 
-    val visibleNotes = remember(notes) {
-        notes.filter { !it.isSecret }
-    }
 
-    val filteredNotes = remember(visibleNotes, searchQuery, sortOrder) {
-        val filtered = if (searchQuery.isBlank()) visibleNotes
-        else visibleNotes.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-            it.body.contains(searchQuery, ignoreCase = true)
-        }
-        filtered.applySortOrder(sortOrder)
-    }
-
-    val pinnedNotes = remember(filteredNotes) { filteredNotes.filter { it.isPinned } }
-    val unpinnedNotes = remember(filteredNotes) { filteredNotes.filter { !it.isPinned } }
+    val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
+    val unpinnedNotes = remember(notes) { notes.filter { !it.isPinned } }
     val currentTheme = LocalAppTheme.current
 
     Scaffold(
@@ -185,7 +176,7 @@ fun HomeScreen(
                             }
                             BasicTextField(
                                 value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                onValueChange = onSearchQueryChange,
                                 textStyle = TextStyle(
                                     fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -196,7 +187,7 @@ fun HomeScreen(
                             )
                         }
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            IconButton(onClick = { onSearchQueryChange("") }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -216,7 +207,7 @@ fun HomeScreen(
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.Sort,
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = "Ordenar",
                                     tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC)
                                         MaterialTheme.colorScheme.primary
@@ -246,7 +237,7 @@ fun HomeScreen(
                                             )
                                         },
                                         onClick = {
-                                            sortOrder = order
+                                            onSortOrderChange(order)
                                             showSortMenu = false
                                         },
                                         leadingIcon = if (sortOrder == order) ({
@@ -271,7 +262,7 @@ fun HomeScreen(
                         if (isBooksEnabled) {
                             IconButton(onClick = onBooksClick) {
                                 Icon(
-                                    imageVector = Icons.Default.MenuBook,
+                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = "Libros",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -305,7 +296,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            if (filteredNotes.isEmpty()) {
+            if (notes.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,

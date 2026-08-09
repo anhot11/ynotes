@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun SafeZoneScreen(
     notes: List<NoteEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    sortOrder: SortOrder,
+    onSortOrderChange: (SortOrder) -> Unit,
     isAppHidingEnabled: Int, // 0=disabled, 1=normal(apps tab), 2=reverse(apps main)
     isBooksEnabled: Boolean,
     onDeactivateSafeZone: () -> Unit,
@@ -70,8 +75,6 @@ fun SafeZoneScreen(
     val coroutineScope = rememberCoroutineScope()
     val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     
-    var searchQuery by remember { mutableStateOf("") }
-    var sortOrder by remember { mutableStateOf(SortOrder.DATE_MODIFIED_DESC) }
     var showSortMenu by remember { mutableStateOf(false) }
     
     // Hidden Apps State
@@ -87,28 +90,28 @@ fun SafeZoneScreen(
     var isAppsListExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
 
-    // Load cached hidden apps instantly on first composition
-    LaunchedEffect(Unit) {
-        cachedHiddenApps = withContext(Dispatchers.IO) {
-            AppCacheManager.loadHiddenApps(context)
+    // Load cached hidden apps & auto-recover missing ones
+    LaunchedEffect(hiddenAppPackages, isAppHidingEnabled) {
+        withContext(Dispatchers.IO) {
+            val currentCached = AppCacheManager.loadHiddenApps(context).toMutableList()
+            val loadedPackages = currentCached.map { it.packageName }.toSet()
+            val missingPackages = hiddenAppPackages - loadedPackages
+
+            if (missingPackages.isNotEmpty()) {
+                val installed = getInstalledApps(context)
+                val missingApps = installed.filter { missingPackages.contains(it.packageName) }
+                currentCached.addAll(missingApps)
+                AppCacheManager.saveHiddenApps(context, currentCached)
+            }
+
+            withContext(Dispatchers.Main) {
+                cachedHiddenApps = currentCached
+            }
         }
     }
 
-    val visibleNotes = remember(notes) {
-        notes.filter { it.isSecret }
-    }
-
-    val filteredNotes = remember(visibleNotes, searchQuery, sortOrder) {
-        val filtered = if (searchQuery.isBlank()) visibleNotes
-        else visibleNotes.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-            it.body.contains(searchQuery, ignoreCase = true)
-        }
-        filtered.applySortOrder(sortOrder)
-    }
-
-    val pinnedNotes = remember(filteredNotes) { filteredNotes.filter { it.isPinned } }
-    val unpinnedNotes = remember(filteredNotes) { filteredNotes.filter { !it.isPinned } }
+    val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
+    val unpinnedNotes = remember(notes) { notes.filter { !it.isPinned } }
 
     // Only load ALL system apps when the app picker dialog is opened
     LaunchedEffect(showAppPicker) {
@@ -141,8 +144,12 @@ fun SafeZoneScreen(
                                         val newSet = if (isSelected) hiddenAppPackages - app.packageName else hiddenAppPackages + app.packageName
                                         hiddenAppPackages = newSet
                                         sharedPrefs.edit().putStringSet("HIDDEN_APPS", newSet).apply()
-                                        // Update cache with the new hidden apps list
-                                        val updatedCachedApps = allInstalledApps.filter { a -> newSet.contains(a.packageName) }
+
+                                        val updatedCachedApps = if (isSelected) {
+                                            cachedHiddenApps.filter { it.packageName != app.packageName }
+                                        } else {
+                                            (cachedHiddenApps + app).distinctBy { it.packageName }
+                                        }
                                         cachedHiddenApps = updatedCachedApps
                                         coroutineScope.launch(Dispatchers.IO) {
                                             AppCacheManager.saveHiddenApps(context, updatedCachedApps)
@@ -236,7 +243,7 @@ fun SafeZoneScreen(
                             }
                             BasicTextField(
                                 value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                onValueChange = onSearchQueryChange,
                                 textStyle = TextStyle(
                                     fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -247,7 +254,7 @@ fun SafeZoneScreen(
                             )
                         }
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            IconButton(onClick = { onSearchQueryChange("") }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -267,7 +274,7 @@ fun SafeZoneScreen(
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.Sort,
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = "Ordenar",
                                     tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC)
                                         MaterialTheme.colorScheme.error
@@ -297,7 +304,7 @@ fun SafeZoneScreen(
                                             )
                                         },
                                         onClick = {
-                                            sortOrder = order
+                                            onSortOrderChange(order)
                                             showSortMenu = false
                                         },
                                         leadingIcon = if (sortOrder == order) ({
@@ -322,7 +329,7 @@ fun SafeZoneScreen(
                         if (isBooksEnabled) {
                             IconButton(onClick = onBooksClick) {
                                 Icon(
-                                    imageVector = Icons.Default.MenuBook,
+                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = "Libros",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -337,7 +344,7 @@ fun SafeZoneScreen(
                         }
                         IconButton(onClick = onDeactivateSafeZone) {
                             Icon(
-                                imageVector = Icons.Default.ExitToApp,
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = "Cerrar Zona Segura",
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -351,7 +358,7 @@ fun SafeZoneScreen(
             // ═══════════════════════════════════════
             if (isAppHidingEnabled == 0) {
                 NotesContent(
-                    filteredNotes = filteredNotes,
+                    filteredNotes = notes,
                     pinnedNotes = pinnedNotes,
                     unpinnedNotes = unpinnedNotes,
                     searchQuery = searchQuery,
@@ -409,7 +416,7 @@ fun SafeZoneScreen(
                                 AddAppButton(iconSize = 48, onClick = { showAppPicker = true })
                             }
                         }
-                        Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     }
                 } else {
                     // No apps added yet — show add button
@@ -425,7 +432,7 @@ fun SafeZoneScreen(
                 }
 
                 NotesContent(
-                    filteredNotes = filteredNotes,
+                    filteredNotes = notes,
                     pinnedNotes = pinnedNotes,
                     unpinnedNotes = unpinnedNotes,
                     searchQuery = searchQuery,
@@ -454,7 +461,7 @@ fun SafeZoneScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Notas Secretas (${filteredNotes.size})",
+                        text = "Notas Secretas (${notes.size})",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
@@ -467,13 +474,15 @@ fun SafeZoneScreen(
                 }
 
                 if (isNotesExpanded) {
-                    if (filteredNotes.isEmpty()) {
-                        Text(
-                            text = if (searchQuery.isBlank()) "Sin notas secretas" else "Sin resultados",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                        )
+                    if (notes.isEmpty()) {
+                        Column(modifier = Modifier.fillMaxSize().padding(top = 48.dp)) {
+                            Text(
+                                text = if (searchQuery.isBlank()) "Sin notas secretas" else "Sin resultados",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                        }
                     } else {
                         LazyRow(
                             modifier = Modifier
@@ -482,7 +491,7 @@ fun SafeZoneScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(filteredNotes, key = { it.id }) { note ->
+                            items(notes, key = { it.id }) { note ->
                                 Card(
                                     modifier = Modifier
                                         .width(160.dp)
@@ -525,7 +534,7 @@ fun SafeZoneScreen(
                             }
                         }
                     }
-                    Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
 
                 // Apps as main grid with bigger icons

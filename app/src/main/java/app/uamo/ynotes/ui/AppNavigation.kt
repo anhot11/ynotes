@@ -2,7 +2,7 @@ package app.uamo.ynotes.ui
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,9 +37,14 @@ fun AppNavigation(
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     
-    val publicNotes by viewModel.publicNotes.collectAsState()
-    val secretNotes by viewModel.secretNotes.collectAsState()
-    val isBooksEnabled by viewModel.isBooksEnabled.collectAsState()
+    val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
+    val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
+    val isBooksEnabled by viewModel.isBooksEnabled.collectAsStateWithLifecycle()
+    
+    val homeSearchQuery by viewModel.homeSearchQuery.collectAsStateWithLifecycle()
+    val homeSortOrder by viewModel.homeSortOrder.collectAsStateWithLifecycle()
+    val safeSearchQuery by viewModel.safeSearchQuery.collectAsStateWithLifecycle()
+    val safeSortOrder by viewModel.safeSortOrder.collectAsStateWithLifecycle()
     
     val executor = ContextCompat.getMainExecutor(context)
 
@@ -107,7 +112,7 @@ fun AppNavigation(
         }
     }
 
-    val isSafeZoneUnlocked by viewModel.isSafeZoneUnlocked.collectAsState()
+    val isSafeZoneUnlocked by viewModel.isSafeZoneUnlocked.collectAsStateWithLifecycle()
 
     LaunchedEffect(isSafeZoneUnlocked) {
         if (!isSafeZoneUnlocked) {
@@ -146,6 +151,10 @@ fun AppNavigation(
         sharedComposable("home") {
             HomeScreen(
                 notes = publicNotes,
+                searchQuery = homeSearchQuery,
+                onSearchQueryChange = { viewModel.homeSearchQuery.value = it },
+                sortOrder = homeSortOrder,
+                onSortOrderChange = { viewModel.homeSortOrder.value = it },
                 safeZonePassword = safeZonePassword.value,
                 safeZoneTriggerMode = safeZoneTriggerMode.value,
                 isBiometricEnabled = isBiometricEnabled.value,
@@ -173,6 +182,10 @@ fun AppNavigation(
         sharedComposable("safe_zone") {
             SafeZoneScreen(
                 notes = secretNotes,
+                searchQuery = safeSearchQuery,
+                onSearchQueryChange = { viewModel.safeSearchQuery.value = it },
+                sortOrder = safeSortOrder,
+                onSortOrderChange = { viewModel.safeSortOrder.value = it },
                 isAppHidingEnabled = isAppHidingEnabled.value,
                 onDeactivateSafeZone = {
                     viewModel.lockSafeZone()
@@ -215,14 +228,14 @@ fun AppNavigation(
                 else publicNotes.find { it.id == noteId }
             } else null
 
-            val books by viewModel.books.collectAsState()
+            val books by viewModel.books.collectAsStateWithLifecycle()
 
             EditorScreen(
                 editingNote = editingNote,
                 isSecret = isSecret,
                 isBooksEnabled = isBooksEnabled,
                 books = books.filter { it.isSecret == isSecret },
-                onSave = { id, title, body, color, isPinned, bookId, isBodyHidden, mediaFiles ->
+                onSave = { id, title, body, color, isPinned, bookId, isBodyHidden, mediaFiles, expiresAt, isWidgetSpecial ->
                     // id is always the stableNoteId from EditorScreen (never null)
                     // Preserve createdAt from existing note if it exists
                     val existingCreatedAt = if (isSecret) secretNotes.find { it.id == id }?.createdAt
@@ -237,7 +250,9 @@ fun AppNavigation(
                         bookId = bookId,
                         isBodyHidden = isBodyHidden,
                         existingCreatedAt = existingCreatedAt,
-                        mediaFiles = mediaFiles
+                        mediaFiles = mediaFiles,
+                        expiresAt = expiresAt,
+                        isWidgetSpecial = isWidgetSpecial
                     )
                 },
                 onDelete = { id ->
@@ -296,7 +311,7 @@ fun AppNavigation(
         ) { backStackEntry ->
             val zone = backStackEntry.arguments?.getString("zone") ?: "public"
             val isSecret = zone == "secret"
-            val allBooks by viewModel.books.collectAsState()
+            val allBooks by viewModel.books.collectAsStateWithLifecycle()
             val books = allBooks.filter { it.isSecret == isSecret }
             
             BooksScreen(
@@ -321,7 +336,7 @@ fun AppNavigation(
             arguments = listOf(navArgument("bookId") { type = NavType.StringType })
         ) { backStackEntry ->
             val bookId = backStackEntry.arguments?.getString("bookId") ?: return@sharedComposable
-            val books by viewModel.books.collectAsState()
+            val books by viewModel.books.collectAsStateWithLifecycle()
             val book = books.find { it.id == bookId } ?: return@sharedComposable
 
             val allNotes = if (book.isSecret) secretNotes else publicNotes
@@ -343,7 +358,7 @@ fun AppNavigation(
         }
 
         sharedComposable("trash") {
-            val deletedNotes by viewModel.deletedNotes.collectAsState()
+            val deletedNotes by viewModel.deletedNotes.collectAsStateWithLifecycle()
             TrashScreen(
                 deletedNotes = deletedNotes,
                 onRestore = { id ->

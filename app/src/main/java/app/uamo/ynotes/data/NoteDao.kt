@@ -9,17 +9,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface NoteDao {
     // Full note queries
-    @Query("SELECT * FROM notes WHERE isSecret = 0 AND isDeleted = 0 ORDER BY isPinned DESC, updatedAt DESC")
-    fun getPublicNotes(): Flow<List<NoteEntity>>
+    @Query("SELECT * FROM notes WHERE isSecret = 0 AND isDeleted = 0 AND (expiresAt IS NULL OR expiresAt > :currentTime) ORDER BY isWidgetSpecial DESC, isPinned DESC, updatedAt DESC")
+    fun getPublicNotes(currentTime: Long = System.currentTimeMillis()): Flow<List<NoteEntity>>
 
-    @Query("SELECT * FROM notes WHERE isSecret = 1 AND isDeleted = 0 ORDER BY isPinned DESC, updatedAt DESC")
-    fun getSecretNotes(): Flow<List<NoteEntity>>
+    @Query("SELECT * FROM notes WHERE isSecret = 1 AND isDeleted = 0 AND (expiresAt IS NULL OR expiresAt > :currentTime) ORDER BY isWidgetSpecial DESC, isPinned DESC, updatedAt DESC")
+    fun getSecretNotes(currentTime: Long = System.currentTimeMillis()): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes WHERE isDeleted = 1 ORDER BY updatedAt DESC")
     fun getDeletedNotes(): Flow<List<NoteEntity>>
 
-    @Query("SELECT * FROM notes WHERE bookId = :bookId AND isDeleted = 0 ORDER BY isPinned DESC, updatedAt DESC")
-    fun getNotesByBook(bookId: String): Flow<List<NoteEntity>>
+    @Query("SELECT * FROM notes WHERE bookId = :bookId AND isDeleted = 0 AND (expiresAt IS NULL OR expiresAt > :currentTime) ORDER BY isPinned DESC, updatedAt DESC")
+    fun getNotesByBook(bookId: String, currentTime: Long = System.currentTimeMillis()): Flow<List<NoteEntity>>
+
+    @Query("UPDATE notes SET isDeleted = 1, updatedAt = :currentTime WHERE isDeleted = 0 AND expiresAt IS NOT NULL AND expiresAt < :currentTime")
+    suspend fun deleteExpiredNotes(currentTime: Long = System.currentTimeMillis())
 
     // Single note by ID (for editor - loads full body on demand)
     @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")

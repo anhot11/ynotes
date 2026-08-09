@@ -36,6 +36,22 @@ fun getInstalledApps(context: Context): List<AppInfo> {
     }.distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
 }
 
+fun getAppInfoForPackage(context: Context, packageName: String): AppInfo? {
+    return try {
+        val pm = context.packageManager
+        val appInfo = pm.getApplicationInfo(packageName, 0)
+        val name = pm.getApplicationLabel(appInfo).toString()
+        val drawable = pm.getApplicationIcon(appInfo)
+        AppInfo(
+            packageName = packageName,
+            name = name,
+            icon = drawableToImageBitmap(drawable)
+        )
+    } catch (e: Exception) {
+        null
+    }
+}
+
 private fun drawableToImageBitmap(drawable: Drawable): ImageBitmap {
     if (drawable is BitmapDrawable && drawable.bitmap != null) {
         val bmp = drawable.bitmap

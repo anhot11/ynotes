@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +72,7 @@ fun EditorScreen(
     isSecret: Boolean,
     isBooksEnabled: Boolean,
     books: List<BookEntity>,
-    onSave: (id: String?, title: String, body: String, color: Long, isPinned: Boolean, bookId: String?, isBodyHidden: Boolean, mediaFiles: String) -> Unit,
+    onSave: (id: String?, title: String, body: String, color: Long, isPinned: Boolean, bookId: String?, isBodyHidden: Boolean, mediaFiles: String, expiresAt: Long?, isWidgetSpecial: Boolean) -> Unit,
     onDelete: (id: String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
@@ -85,6 +86,8 @@ fun EditorScreen(
     var bookId by remember { mutableStateOf(editingNote?.bookId) }
     var isBodyHidden by remember { mutableStateOf(editingNote?.isBodyHidden ?: false) }
     var isDeleted by remember { mutableStateOf(false) }
+    var isWidgetSpecial by remember { mutableStateOf(editingNote?.isWidgetSpecial ?: false) }
+    var expiresAt by remember { mutableStateOf(editingNote?.expiresAt) }
 
     // Media state
     var mediaFileNames by remember {
@@ -96,6 +99,7 @@ fun EditorScreen(
 
     var showColorPicker by remember { mutableStateOf(false) }
     var showBookMenu by remember { mutableStateOf(false) }
+    var showWidgetMenu by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -152,7 +156,7 @@ fun EditorScreen(
                     if (newNames.isNotEmpty()) {
                         mediaFileNames = mediaFileNames + newNames
                         if (!isDeleted && (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty())) {
-                            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString())
+                            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
                         }
                     }
                 }
@@ -195,7 +199,7 @@ fun EditorScreen(
                     if (newNames.isNotEmpty()) {
                         mediaFileNames = mediaFileNames + newNames
                         if (!isDeleted && (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty())) {
-                            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString())
+                            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
                         }
                     }
                 }
@@ -212,7 +216,7 @@ fun EditorScreen(
         debounceJob = coroutineScope.launch {
             delay(500)
             if (!isDeleted && (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty())) {
-                onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString())
+                onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
             }
         }
     }
@@ -222,7 +226,7 @@ fun EditorScreen(
         if (isDeleted) return
         debounceJob?.cancel()
         if (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty()) {
-            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString())
+            onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
         }
     }
 
@@ -247,7 +251,7 @@ fun EditorScreen(
                         saveNow()
                         onNavigateBack()
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
                     }
                 },
                 actions = {
@@ -265,7 +269,7 @@ fun EditorScreen(
                         Box {
                             IconButton(onClick = { showBookMenu = true }) {
                                 Icon(
-                                    Icons.Default.MenuBook,
+                                    Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = "Libro",
                                     tint = if (bookId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -292,6 +296,50 @@ fun EditorScreen(
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { showWidgetMenu = true }) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = "Widget",
+                                tint = if (isWidgetSpecial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showWidgetMenu,
+                            onDismissRequest = { showWidgetMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(if (isWidgetSpecial) "Desactivar Widget" else "Fijar en Widget") },
+                                onClick = {
+                                    isWidgetSpecial = !isWidgetSpecial
+                                    if (!isWidgetSpecial) {
+                                        expiresAt = null
+                                    }
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                            if (isWidgetSpecial) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("No expira", fontWeight = if (expiresAt == null) FontWeight.Bold else FontWeight.Normal) },
+                                    onClick = { expiresAt = null; showWidgetMenu = false; saveNow() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 hora") },
+                                    onClick = { expiresAt = System.currentTimeMillis() + 3600000L; showWidgetMenu = false; saveNow() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 día") },
+                                    onClick = { expiresAt = System.currentTimeMillis() + 86400000L; showWidgetMenu = false; saveNow() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 semana") },
+                                    onClick = { expiresAt = System.currentTimeMillis() + 604800000L; showWidgetMenu = false; saveNow() }
+                                )
                             }
                         }
                     }
