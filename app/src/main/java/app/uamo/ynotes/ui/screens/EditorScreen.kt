@@ -422,7 +422,7 @@ fun EditorScreen(
                             Color(colorValue)
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(displayColor)
                                 .border(
@@ -441,9 +441,9 @@ fun EditorScreen(
                             if (isSelected) {
                                 Icon(
                                     Icons.Default.Check,
-                                    contentDescription = "Seleccionado",
+                                    contentDescription = "Color seleccionado",
                                     tint = Color.White.copy(alpha = 0.9f),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -459,24 +459,23 @@ fun EditorScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(mediaFileNames, key = { it }) { fileName ->
+                    items(mediaFileNames) { fileName ->
+                        val bitmap = mediaBitmaps[fileName]
                         Box(
                             modifier = Modifier
                                 .size(80.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
                         ) {
-                            mediaBitmaps[fileName]?.let { bitmap ->
+                            if (bitmap != null) {
                                 Image(
                                     bitmap = bitmap.asImageBitmap(),
                                     contentDescription = "Imagen adjunta",
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
-                            } ?: Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            } else {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
                                     strokeWidth = 2.dp
@@ -494,9 +493,9 @@ fun EditorScreen(
                                 },
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .size(24.dp)
+                                    .size(36.dp)
                                     .background(
-                                        Color.Black.copy(alpha = 0.5f),
+                                        Color.Black.copy(alpha = 0.6f),
                                         CircleShape
                                     )
                             ) {
@@ -504,7 +503,7 @@ fun EditorScreen(
                                     Icons.Default.Close,
                                     contentDescription = "Eliminar imagen",
                                     tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }

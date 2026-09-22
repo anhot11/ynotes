@@ -219,7 +219,7 @@ fun NoteCard(
                         if (mediaFileNames.isNotEmpty()) {
                             Icon(
                                 imageVector = Icons.Default.Photo,
-                                contentDescription = null,
+                                contentDescription = "Nota con imágenes adjuntas",
                                 modifier = Modifier.size(14.dp),
                                 tint = (if (note.isPinned && !isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.5f)
                             )
@@ -227,7 +227,7 @@ fun NoteCard(
                         }
                         Icon(
                             imageVector = if (note.isSecret) Icons.Default.VpnKey else Icons.Default.Description,
-                            contentDescription = null,
+                            contentDescription = if (note.isSecret) "Nota secreta cifrada" else "Nota pública",
                             modifier = Modifier.size(16.dp),
                             tint = (if (note.isSecret) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.5f)
                         )
@@ -241,15 +241,15 @@ fun NoteCard(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp)
-                        .size(22.dp)
+                        .size(24.dp)
                         .background(MaterialTheme.colorScheme.primary, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = "Seleccionada",
+                        contentDescription = "Nota seleccionada",
                         tint = Color.White,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             } else if (isSelectionMode) {
@@ -258,7 +258,7 @@ fun NoteCard(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp)
-                        .size(22.dp)
+                        .size(24.dp)
                         .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
                 )
             }

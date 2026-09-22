@@ -135,7 +135,14 @@ fun AppNavigation(
     }
 
     SharedTransitionProvider {
-        NavHost(navController = navController, startDestination = startDestination) {
+        NavHost(
+            navController = navController, 
+            startDestination = startDestination,
+            enterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }) + androidx.compose.animation.fadeIn() },
+            exitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it / 4 }) + androidx.compose.animation.fadeOut() },
+            popEnterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it / 4 }) + androidx.compose.animation.fadeIn() },
+            popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) + androidx.compose.animation.fadeOut() }
+        ) {
             
             sharedComposable("welcome") {
             WelcomeScreen(

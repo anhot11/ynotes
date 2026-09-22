@@ -59,7 +59,8 @@ class YNotesWidget : GlanceAppWidget() {
             db.deleteExpiredNotes()
             
             if (showSafeZoneNotes) {
-                db.getSecretNotes().firstOrNull() ?: emptyList()
+                val secretNotes = db.getSecretNotes().firstOrNull() ?: emptyList()
+                app.uamo.ynotes.utils.CryptoManager.decryptBatch(secretNotes)
             } else {
                 db.getPublicNotes().firstOrNull() ?: emptyList()
             }

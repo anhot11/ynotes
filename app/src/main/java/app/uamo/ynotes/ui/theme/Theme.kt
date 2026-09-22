@@ -18,18 +18,33 @@ private val DarkColorScheme = darkColorScheme(
     secondary = SecondaryAccent,
     tertiary = TertiaryAccent,
     background = AmoledBlack,
-    surface = AmoledBlack, // Base surface is black, we'll use GlassSurface for cards
+    surface = AmoledBlack,
     surfaceVariant = GlassSurface,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = TextPrimary,
     onSurface = TextPrimary,
     onSurfaceVariant = TextSecondary,
-    outline = GlassBorder
+    outline = GlassBorder,
+    outlineVariant = Color(0x1FFFFFFF)
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryAccent,
     secondary = SecondaryAccent,
-    tertiary = TertiaryAccent
-// We force AMOLED dark mode anyway for this app as requested
+    tertiary = TertiaryAccent,
+    background = Color(0xFFF9FAFB),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFF3F4F6),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF111827),
+    onSurface = Color(0xFF111827),
+    onSurfaceVariant = Color(0xFF4B5563),
+    outline = Color(0xFFD1D5DB),
+    outlineVariant = Color(0xFFE5E7EB)
 )
 
 enum class AppThemeType {
@@ -117,6 +132,7 @@ fun YNotesTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
+            shapes = Shapes,
             content = content
         )
     }

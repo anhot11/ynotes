@@ -120,19 +120,12 @@ object MediaManager {
                 val encFile = File(getMediaDir(context, noteId, true), fileName.replace(".jpg", ".enc"))
                 if (!encFile.exists()) return null
                 
-                val tempFile = File(context.cacheDir, "temp_decrypted_${UUID.randomUUID()}.jpg")
-                try {
-                    FileOutputStream(tempFile).use { output ->
-                        FileInputStream(encFile).use { input ->
-                            CryptoManager.decryptFile(input, output)
-                        }
-                    }
-                    decodeSampledBitmapFromFile(tempFile.absolutePath, maxSize)
-                } finally {
-                    if (tempFile.exists()) {
-                        tempFile.delete()
-                    }
+                val byteOut = java.io.ByteArrayOutputStream()
+                java.io.FileInputStream(encFile).use { input ->
+                    CryptoManager.decryptFile(input, byteOut)
                 }
+                val decryptedBytes = byteOut.toByteArray()
+                decodeSampledBitmapFromByteArray(decryptedBytes, maxSize)
             } else {
                 val file = File(getMediaDir(context, noteId, false), fileName)
                 if (!file.exists()) return null
@@ -185,6 +178,19 @@ object MediaManager {
             keysToEvict.forEach { bitmapCache.remove(it) }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun decodeSampledBitmapFromByteArray(bytes: ByteArray, maxSize: Int): Bitmap? {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        options.inSampleSize = calculateInSampleSize(options, maxSize, maxSize)
+        options.inJustDecodeBounds = false
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        return if (bmp.config == Bitmap.Config.HARDWARE) {
+            bmp.copy(Bitmap.Config.ARGB_8888, false) ?: bmp
+        } else {
+            bmp
         }
     }
 

@@ -120,7 +120,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     // ──────────────────────────────────────────────
     // DELETED NOTES
     // ──────────────────────────────────────────────
-    private val deletedNotesDecryptedCache = mutableMapOf<String, NoteEntity>()
+    private val deletedNotesDecryptedCache = java.util.concurrent.ConcurrentHashMap<String, NoteEntity>()
+    private val decryptedSecretNotesCache = java.util.concurrent.ConcurrentHashMap<String, NoteEntity>()
 
     val deletedNotes: StateFlow<List<NoteEntity>> = noteDao.getDeletedNotes()
         .combine(_isSafeZoneUnlocked) { notes, unlocked ->
@@ -170,27 +171,28 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Called after successful biometric authentication.
-     * Decrypts all secret notes into memory.
+     * Incrementally decrypts secret notes into memory without re-decrypting unchanged notes.
      */
     private var syncJob: kotlinx.coroutines.Job? = null
 
     fun unlockSafeZone() {
         _isSafeZoneUnlocked.value = true
-        // Decrypt current raw notes in batch (key lookup once)
-        viewModelScope.launch(Dispatchers.Default) {
-            val raw = _rawSecretNotes.value
-            val decrypted = CryptoManager.decryptBatch(raw)
-            _decryptedSecretNotes.value = decrypted
-        }
-        // Keep decrypted cache in sync while unlocked
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             _rawSecretNotes.collect { rawNotes ->
                 if (_isSafeZoneUnlocked.value) {
-                    val decrypted = withContext(Dispatchers.Default) {
-                        CryptoManager.decryptBatch(rawNotes)
+                    val toDecrypt = rawNotes.filter { note ->
+                        decryptedSecretNotesCache[note.id]?.updatedAt != note.updatedAt
                     }
-                    _decryptedSecretNotes.value = decrypted
+                    if (toDecrypt.isNotEmpty()) {
+                        val newlyDecrypted = withContext(Dispatchers.Default) {
+                            CryptoManager.decryptBatch(toDecrypt)
+                        }
+                        newlyDecrypted.forEach { decryptedSecretNotesCache[it.id] = it }
+                    }
+                    val validIds = rawNotes.map { it.id }.toSet()
+                    decryptedSecretNotesCache.keys.retainAll(validIds)
+                    _decryptedSecretNotes.value = rawNotes.mapNotNull { decryptedSecretNotesCache[it.id] }
                 }
             }
         }
@@ -198,14 +200,16 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Called when user exits Safe Zone.
-     * Clears decrypted data from memory immediately.
+     * Clears decrypted data and keys from memory immediately.
      */
     fun lockSafeZone() {
         _isSafeZoneUnlocked.value = false
-        _decryptedSecretNotes.value = emptyList()  // Wipe from memory
-        deletedNotesDecryptedCache.clear()         // Wipe trash cache from memory
-        MediaManager.clearCache()                  // Wipe cached thumbnails from memory
-        MediaManager.cleanOrphanedTempFiles(getApplication()) // Wipe residual temp files from disk
+        _decryptedSecretNotes.value = emptyList()
+        decryptedSecretNotesCache.clear()
+        deletedNotesDecryptedCache.clear()
+        CryptoManager.clearKeyCache()
+        MediaManager.clearCache()
+        MediaManager.cleanOrphanedTempFiles(getApplication())
         cancelAutoLock()
     }
 
@@ -237,6 +241,17 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     // NOTE OPERATIONS
     // ──────────────────────────────────────────────
 
+    private fun notifyWidgetUpdate() {
+        try {
+            val app = getApplication<Application>()
+            app.sendBroadcast(
+                android.content.Intent(app, app.uamo.ynotes.widget.YNotesWidgetReceiver::class.java).apply {
+                    action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                }
+            )
+        } catch (_: Throwable) {}
+    }
+
     fun saveNote(
         id: String?, 
         title: String, 
@@ -256,70 +271,77 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         val noteId = id ?: UUID.randomUUID().toString()
         val currentTime = System.currentTimeMillis()
         
-        // Use batch encrypt for secret notes (single key lookup)
-        val (finalTitle, finalBody) = if (isSecret) {
-            CryptoManager.encryptFields(title, body)
-        } else {
-            Pair(title, body)
-        }
-        
-        viewModelScope.launch {
-            noteDao.insertNote(
-                NoteEntity(
-                    id = noteId,
-                    title = finalTitle,
-                    body = finalBody,
-                    isSecret = isSecret,
-                    color = color,
-                    createdAt = existingCreatedAt ?: currentTime,
-                    updatedAt = currentTime,
-                    isPinned = isPinned,
-                    bookId = bookId,
-                    isDeleted = false,
-                    isBodyHidden = isBodyHidden,
-                    mediaFiles = mediaFiles,
-                    expiresAt = expiresAt,
-                    isWidgetSpecial = isWidgetSpecial
+        viewModelScope.launch(Dispatchers.Default) {
+            val (finalTitle, finalBody) = if (isSecret) {
+                CryptoManager.encryptFields(title, body)
+            } else {
+                Pair(title, body)
+            }
+            
+            withContext(Dispatchers.IO) {
+                noteDao.insertNote(
+                    NoteEntity(
+                        id = noteId,
+                        title = finalTitle,
+                        body = finalBody,
+                        isSecret = isSecret,
+                        color = color,
+                        createdAt = existingCreatedAt ?: currentTime,
+                        updatedAt = currentTime,
+                        isPinned = isPinned,
+                        bookId = bookId,
+                        isDeleted = false,
+                        isBodyHidden = isBodyHidden,
+                        mediaFiles = mediaFiles,
+                        expiresAt = expiresAt,
+                        isWidgetSpecial = isWidgetSpecial
+                    )
                 )
-            )
+                notifyWidgetUpdate()
+            }
         }
     }
 
     fun deleteNote(id: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             noteDao.moveToTrash(id)
+            notifyWidgetUpdate()
         }
     }
 
     fun deleteNotes(ids: List<String>) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             ids.forEach { noteDao.moveToTrash(it) }
+            notifyWidgetUpdate()
         }
     }
 
     fun restoreFromTrash(id: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             noteDao.restoreFromTrash(id)
+            notifyWidgetUpdate()
         }
     }
 
     fun deleteNotePermanently(id: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val note = deletedNotes.value.find { it.id == id }
             if (note != null) {
                 MediaManager.deleteNoteMedia(getApplication(), note.id, note.isSecret)
             }
             noteDao.deleteNote(id)
+            notifyWidgetUpdate()
         }
     }
     
     fun emptyTrash() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val trashNotes = deletedNotes.value
             trashNotes.forEach { note ->
                 MediaManager.deleteNoteMedia(getApplication(), note.id, note.isSecret)
             }
             noteDao.emptyTrash()
+            notifyWidgetUpdate()
         }
     }
 
