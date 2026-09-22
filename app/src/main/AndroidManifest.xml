@@ -13,7 +13,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:label="yNotes"
+        android:label="y.notes"
         android:supportsRtl="true"
         android:theme="@style/Theme.YNotes">
         <activity
@@ -32,7 +32,7 @@
 
         <receiver
             android:name=".widget.YNotesWidgetReceiver"
-            android:label="yNotes Widget"
+            android:label="y.notes Widget"
             android:icon="@mipmap/ic_launcher"
             android:exported="true">
             <intent-filter>
