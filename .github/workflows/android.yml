@@ -13,6 +13,8 @@ jobs:
   build_and_test:
     name: Build, Test & Quality Verification
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
