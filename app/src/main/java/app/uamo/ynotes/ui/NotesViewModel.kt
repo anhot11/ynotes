@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import app.uamo.ynotes.utils.CryptoManager
 import app.uamo.ynotes.utils.MediaManager
+import app.uamo.ynotes.widget.YNotesWidgetReceiver
 import java.util.UUID
 
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
@@ -245,7 +246,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val app = getApplication<Application>()
             app.sendBroadcast(
-                android.content.Intent(app, app.uamo.ynotes.widget.YNotesWidgetReceiver::class.java).apply {
+                android.content.Intent(app, YNotesWidgetReceiver::class.java).apply {
                     action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
                 }
             )
