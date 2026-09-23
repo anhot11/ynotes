@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
 import app.uamo.ynotes.data.applySortOrder
+import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
 import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.ui.theme.AppThemeType
@@ -516,12 +517,26 @@ fun SafeZoneScreen(
 
                 if (isNotesExpanded) {
                     if (notes.isEmpty()) {
-                        Column(modifier = Modifier.fillMaxSize().padding(top = 48.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = CustomIcons.ShieldLockOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = if (searchQuery.isBlank()) "Sin notas secretas" else "Sin resultados",
+                                text = if (searchQuery.isBlank()) "No hay notas secretas guardadas aún." else "Sin resultados en la bóveda.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {

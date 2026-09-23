@@ -1,20 +1,25 @@
 package app.uamo.ynotes.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.ui.components.NoteCard
 
@@ -39,7 +44,15 @@ fun TrashScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
-                title = { Text("Papelera") },
+                title = {
+                    Text(
+                        "Papelera",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.3).sp
+                        )
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -48,7 +61,11 @@ fun TrashScreen(
                 actions = {
                     if (deletedNotes.isNotEmpty()) {
                         IconButton(onClick = { showEmptyTrashDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Vaciar Papelera", tint = MaterialTheme.colorScheme.error)
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = "Vaciar Papelera",
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
@@ -61,8 +78,44 @@ fun TrashScreen(
                 .fillMaxSize()
         ) {
             if (deletedNotes.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("La papelera está vacía", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 32.dp, vertical = 48.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Papelera vacía",
+                            modifier = Modifier.size(46.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Papelera vacía",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.3).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Las notas que elimines se guardarán aquí temporalmente por si decides recuperarlas más adelante.",
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             } else {
                 LazyVerticalStaggeredGrid(
@@ -82,14 +135,31 @@ fun TrashScreen(
         if (showEmptyTrashDialog) {
             AlertDialog(
                 onDismissRequest = { showEmptyTrashDialog = false },
-                title = { Text("Vaciar papelera") },
-                text = { Text("¿Estás seguro de que quieres eliminar todas las notas permanentemente? Esta acción no se puede deshacer.") },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        "Vaciar papelera",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                },
+                text = {
+                    Text(
+                        "¿Estás seguro de que deseas eliminar todas las notas permanentemente? Esta acción es irreversible.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        onEmptyTrash()
-                        showEmptyTrashDialog = false
-                    }) {
-                        Text("Vaciar", color = MaterialTheme.colorScheme.error)
+                    Button(
+                        onClick = {
+                            onEmptyTrash()
+                            showEmptyTrashDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Vaciar permanentemente")
                     }
                 },
                 dismissButton = {
@@ -103,23 +173,43 @@ fun TrashScreen(
         selectedNote?.let { note ->
             AlertDialog(
                 onDismissRequest = { selectedNote = null },
-                title = { Text("Opciones de nota") },
-                text = { Text("¿Qué deseas hacer con esta nota eliminada?") },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        "Opciones de nota",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                },
+                text = {
+                    Text(
+                        "\"${note.title.ifBlank { "Nota sin título" }}\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        onRestore(note.id)
-                        selectedNote = null
-                    }) {
+                    Button(
+                        onClick = {
+                            onRestore(note.id)
+                            selectedNote = null
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Restaurar")
                     }
                 },
                 dismissButton = {
-                    Row {
-                        TextButton(onClick = {
-                            onDeletePermanently(note.id)
-                            selectedNote = null
-                        }) {
-                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                onDeletePermanently(note.id)
+                                selectedNote = null
+                            }
+                        ) {
+                            Text("Eliminar definitivamente", color = MaterialTheme.colorScheme.error)
                         }
                         TextButton(onClick = { selectedNote = null }) {
                             Text("Cancelar")

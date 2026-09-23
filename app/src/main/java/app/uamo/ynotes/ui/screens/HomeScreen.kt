@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
+import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
 import app.uamo.ynotes.ui.theme.AppThemeType
 import app.uamo.ynotes.ui.theme.AuroraPrimary
@@ -531,42 +532,59 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        modifier = Modifier.size(90.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Description,
+                            imageVector = CustomIcons.NotebookEditOutline,
                             contentDescription = "Sin notas",
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier.size(46.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Text(
                         text = if (searchQuery.isNotBlank()) "Sin resultados para \"$searchQuery\""
                         else if (selectedFilter != HomeFilter.ALL) "No hay notas en ${selectedFilter.label}"
                         else "Tu espacio creativo está listo",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.3).sp
+                        ),
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Escribe pensamientos, notas personales o ideas importantes con privacidad total y cifrado local.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = if (searchQuery.isNotBlank()) "Prueba con otra palabra clave o revisa los filtros."
+                        else "Captura pensamientos, listas y proyectos con privacidad total, Markdown fluido y cifrado local.",
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = onAddNote,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(28.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AuroraPrimary)
+                            .clickable { onAddNote() }
+                            .padding(horizontal = 24.dp, vertical = 14.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Escribir mi primera nota")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Escribir mi primera nota",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             } else {

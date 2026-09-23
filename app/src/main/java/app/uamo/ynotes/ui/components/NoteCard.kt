@@ -185,24 +185,24 @@ fun NoteCard(
             }
 
             // 📝 Card Body & Details
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(18.dp)) {
                 // Top Tag Row: Notebook, Pinned, and Widget indicators
                 val hasTopBadges = bookName != null || note.isPinned || note.isWidgetSpecial
                 if (hasTopBadges) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
+                            .padding(bottom = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (bookName != null) {
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
@@ -211,7 +211,7 @@ fun NoteCard(
                                         modifier = Modifier.size(11.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = bookName,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -233,21 +233,21 @@ fun NoteCard(
                                     contentDescription = "En Widget",
                                     tint = MaterialTheme.colorScheme.tertiary,
                                     modifier = Modifier
-                                        .size(14.dp)
+                                        .size(15.dp)
                                         .padding(end = 4.dp)
                                 )
                             }
                             if (note.isPinned) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    modifier = Modifier.size(20.dp)
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                    modifier = Modifier.size(22.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.PushPin,
                                         contentDescription = "Fijada",
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(3.dp)
+                                        modifier = Modifier.padding(4.dp)
                                     )
                                 }
                             }
@@ -276,9 +276,9 @@ fun NoteCard(
                     Text(
                         text = parseMarkdown(note.body, bodyColor),
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 20.sp
+                            lineHeight = 21.sp
                         ),
-                        color = bodyColor,
+                        color = bodyColor.copy(alpha = 0.85f),
                         maxLines = 4,
                         overflow = TextOverflow.Ellipsis
                     )

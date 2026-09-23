@@ -3,25 +3,40 @@ package app.uamo.ynotes.ui.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// 2026 Core Palette
-val PrimaryAccent = Color(0xFF8B5CF6) // Deep Purple / Indigo
-val SecondaryAccent = Color(0xFF06B6D4) // Cyan / Aqua
-val TertiaryAccent = Color(0xFFEC4899) // Vibrant Pink
+// 2026 Core Palette - Warm, Alive & Editorial
+val PrimaryAccent = Color(0xFF5B45E0) // Warm Brand Indigo (Creative & Human)
+val PrimaryAccentDark = Color(0xFF816EF7) // Luminous Electric Lavender
+val SecondaryAccent = Color(0xFFE06345) // Warm Terracotta / Coral
+val SecondaryAccentDark = Color(0xFFF87171) // Luminous Soft Coral
+val TertiaryAccent = Color(0xFFF59E0B) // Solar Warm Amber
 
-// Glassmorphism & AMOLED
-val AmoledBlack = Color(0xFF0B0D13) // Refined dark obsidian
+// Warm Paper (Light) & Midnight Charcoal (Dark) Surfaces
+val WarmLinenLight = Color(0xFFFBFBFA) // Cream linen background
+val WarmSurfaceLight = Color(0xFFFFFFFF)
+val WarmSurfaceHighlightLight = Color(0xFFF3F2EE) // Soft parchment
+val TextPrimaryLight = Color(0xFF1A1A1E) // Humanistic deep graphite
+val TextSecondaryLight = Color(0xFF64666E) // Neutral slate
+
+val MidnightCharcoalDark = Color(0xFF0E1013) // Abyssal charcoal
+val CharcoalSurfaceDark = Color(0xFF17191E) // Layered dark surface
+val CharcoalSurfaceHighlightDark = Color(0xFF21242C) // Elevated dark surface
+val TextPrimaryDark = Color(0xFFF4F5F7) // Soft ice gray
+val TextSecondaryDark = Color(0xFF9CA3AF) // Fog gray
+
+// Backwards-compatible aliases
+val AmoledBlack = MidnightCharcoalDark
 val AmoledDeepBlack = Color(0xFF000000)
-val GlassSurface = Color(0xFF161922) // Refined surface slate
-val GlassSurfaceHighlight = Color(0xFF1E222E)
+val GlassSurface = CharcoalSurfaceDark
+val GlassSurfaceHighlight = CharcoalSurfaceHighlightDark
 val GlassBorder = Color(0x22FFFFFF)
-val TextPrimary = Color(0xFFF3F4F6)
-val TextSecondary = Color(0xFF94A3B8)
+val TextPrimary = TextPrimaryDark
+val TextSecondary = TextSecondaryDark
 
 // Aurora Gradients for elements
-val AuroraPrimary = Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFFEC4899)))
-val AuroraSecondary = Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF3B82F6)))
-val AuroraAmber = Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFEF4444)))
-val AuroraEmerald = Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF06B6D4)))
+val AuroraPrimary = Brush.linearGradient(listOf(Color(0xFF5B45E0), Color(0xFF816EF7), Color(0xFFE06345)))
+val AuroraSecondary = Brush.linearGradient(listOf(Color(0xFF0284C7), Color(0xFF5B45E0)))
+val AuroraAmber = Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFE06345)))
+val AuroraEmerald = Brush.linearGradient(listOf(Color(0xFF059669), Color(0xFF0284C7)))
 
 // Google Theme Colors
 val GoogleLightBackground = Color(0xFFF8F9FA)
@@ -62,7 +77,7 @@ val NoteColors = listOf(
 fun getNoteCardBrush(colorValue: Long, isDark: Boolean): Brush {
     if (isDark) {
         return when (colorValue) {
-            0L -> Brush.linearGradient(listOf(Color(0xFF181A22), Color(0xFF13151C)))
+            0L -> Brush.linearGradient(listOf(Color(0xFF181A20), Color(0xFF131418)))
             0xFF7C3AED -> Brush.linearGradient(listOf(Color(0xFF2B1C44), Color(0xFF1E1332)))
             0xFF0284C7 -> Brush.linearGradient(listOf(Color(0xFF132B3B), Color(0xFF0E1F2C)))
             0xFF059669 -> Brush.linearGradient(listOf(Color(0xFF133224), Color(0xFF0E241A)))
@@ -78,7 +93,7 @@ fun getNoteCardBrush(colorValue: Long, isDark: Boolean): Brush {
         }
     } else {
         return when (colorValue) {
-            0L -> Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFF8FAFC)))
+            0L -> Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF9F6)))
             0xFF7C3AED -> Brush.linearGradient(listOf(Color(0xFFF7F3FF), Color(0xFFEDE5FE)))
             0xFF0284C7 -> Brush.linearGradient(listOf(Color(0xFFF0F9FF), Color(0xFFE0F2FE)))
             0xFF059669 -> Brush.linearGradient(listOf(Color(0xFFECFDF5), Color(0xFFD1FAE5)))
@@ -100,10 +115,10 @@ fun getNoteCardBrush(colorValue: Long, isDark: Boolean): Brush {
  */
 fun getNoteCardBorderColor(colorValue: Long, isDark: Boolean): Color {
     return if (isDark) {
-        if (colorValue == 0L) Color(0x1FFFFFFF)
+        if (colorValue == 0L) Color(0x18FFFFFF)
         else Color(colorValue).copy(alpha = 0.35f)
     } else {
-        if (colorValue == 0L) Color(0x1A000000)
-        else Color(colorValue).copy(alpha = 0.25f)
+        if (colorValue == 0L) Color(0x0F000000)
+        else Color(colorValue).copy(alpha = 0.22f)
     }
 }

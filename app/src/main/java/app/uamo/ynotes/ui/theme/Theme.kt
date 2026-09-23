@@ -14,37 +14,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryAccent,
-    secondary = SecondaryAccent,
+    primary = PrimaryAccentDark,
+    secondary = SecondaryAccentDark,
     tertiary = TertiaryAccent,
-    background = AmoledBlack,
-    surface = AmoledBlack,
-    surfaceVariant = GlassSurface,
+    background = MidnightCharcoalDark,
+    surface = CharcoalSurfaceDark,
+    surfaceVariant = CharcoalSurfaceHighlightDark,
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary,
-    onSurfaceVariant = TextSecondary,
-    outline = GlassBorder,
-    outlineVariant = Color(0x1FFFFFFF)
+    onTertiary = Color.Black,
+    onBackground = TextPrimaryDark,
+    onSurface = TextPrimaryDark,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = Color(0x24FFFFFF),
+    outlineVariant = Color(0x14FFFFFF)
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryAccent,
     secondary = SecondaryAccent,
     tertiary = TertiaryAccent,
-    background = Color(0xFFF9FAFB),
-    surface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFFF3F4F6),
+    background = WarmLinenLight,
+    surface = WarmSurfaceLight,
+    surfaceVariant = WarmSurfaceHighlightLight,
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF111827),
-    onSurface = Color(0xFF111827),
-    onSurfaceVariant = Color(0xFF4B5563),
-    outline = Color(0xFFD1D5DB),
-    outlineVariant = Color(0xFFE5E7EB)
+    onTertiary = Color.Black,
+    onBackground = TextPrimaryLight,
+    onSurface = TextPrimaryLight,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = Color(0xFFE2E2DF),
+    outlineVariant = Color(0xFFEEEEEC)
 )
 
 enum class AppThemeType {
@@ -110,15 +110,21 @@ fun YNotesTheme(
                 val context = LocalContext.current
                 if (darkTheme) {
                     dynamicDarkColorScheme(context).copy(
-                        background = AmoledBlack,
-                        surface = AmoledBlack,
-                        surfaceVariant = GlassSurface,
-                        onSurface = TextPrimary,
-                        onSurfaceVariant = TextSecondary,
-                        outline = GlassBorder
+                        background = MidnightCharcoalDark,
+                        surface = CharcoalSurfaceDark,
+                        surfaceVariant = CharcoalSurfaceHighlightDark,
+                        onSurface = TextPrimaryDark,
+                        onSurfaceVariant = TextSecondaryDark,
+                        outline = Color(0x24FFFFFF)
                     )
                 } else {
-                    dynamicLightColorScheme(context)
+                    dynamicLightColorScheme(context).copy(
+                        background = WarmLinenLight,
+                        surface = WarmSurfaceLight,
+                        surfaceVariant = WarmSurfaceHighlightLight,
+                        onSurface = TextPrimaryLight,
+                        onSurfaceVariant = TextSecondaryLight
+                    )
                 }
             } else if (darkTheme) {
                 DarkColorScheme
