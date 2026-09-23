@@ -51,6 +51,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+val NoteColors = app.uamo.ynotes.ui.theme.NoteColors
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(

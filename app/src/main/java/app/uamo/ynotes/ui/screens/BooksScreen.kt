@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import app.uamo.ynotes.data.BookEntity
+import app.uamo.ynotes.ui.theme.NoteColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
