@@ -1,36 +1,38 @@
 package app.uamo.ynotes.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.content.Intent
-import android.net.Uri
+import androidx.glance.appwidget.updateAll
 import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.widget.YNotesWidget
-import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -53,12 +55,13 @@ fun SettingsScreen(
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var inputPassword by remember { mutableStateOf("") }
-    var inputMode by remember { mutableStateOf(0) }
+    var inputMode by remember { mutableStateOf(currentTriggerMode) }
     var showDonationDialog by remember { mutableStateOf(false) }
-    
+
     val context = LocalContext.current
-    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", android.content.Context.MODE_PRIVATE) }
+    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
+    var widgetShowSafeZone by remember { mutableStateOf(sharedPrefs.getBoolean("widget_show_safe_zone", false)) }
     val coroutineScope = rememberCoroutineScope()
 
     val biometricManager = remember { BiometricManager.from(context) }
@@ -66,15 +69,23 @@ fun SettingsScreen(
         biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
-    // Separa las opciones: en la zona normal solo vemos "Crear" (si no existe). 
-    // En la zona segura vemos "Configurar" y "Huella".
     val isSafeZoneCreated = currentPassword.isNotEmpty()
     val showSecurityOptions = if (isFromSafeZone) true else !isSafeZoneCreated
+
+    val appVersion = remember {
+        try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            packageInfo.versionName ?: "1.0.4"
+        } catch (e: Exception) {
+            "1.0.4"
+        }
+    }
 
     BackHandler {
         onNavigateBack()
     }
 
+    // Dialog for SafeZone configuration
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -84,26 +95,54 @@ fun SettingsScreen(
                 Column {
                     Text("Selecciona cómo accederás a la Zona Segura:", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { inputMode = 0 }) {
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { inputMode = 0 }
+                            .padding(vertical = 4.dp)
+                    ) {
                         RadioButton(selected = inputMode == 0, onClick = { inputMode = 0 })
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Escribir la contraseña en el buscador", style = MaterialTheme.typography.bodyMedium)
                     }
                     if (canAuthenticate) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { inputMode = 1 }) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { inputMode = 1 }
+                                .padding(vertical = 4.dp)
+                        ) {
                             RadioButton(selected = inputMode == 1, onClick = { inputMode = 1 })
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Mantener presionado Buscar (+ Huella)", style = MaterialTheme.typography.bodyMedium)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { inputMode = 2 }) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { inputMode = 2 }
+                                .padding(vertical = 4.dp)
+                        ) {
                             RadioButton(selected = inputMode == 2, onClick = { inputMode = 2 })
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Mantener presionado Ajustes (+ Huella)", style = MaterialTheme.typography.bodyMedium)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { inputMode = 3 }) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { inputMode = 3 }
+                                .padding(vertical = 4.dp)
+                        ) {
                             RadioButton(selected = inputMode == 3, onClick = { inputMode = 3 })
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Mantener presionado Añadir Nota (+ Huella)", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(12.dp))
                     if (inputMode == 0) {
                         OutlinedTextField(
@@ -118,8 +157,8 @@ fun SettingsScreen(
                     if (currentPassword.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = if (inputMode == 0) "Nota: Guarda con el campo vacío para eliminar la Zona Segura." else "Nota: Selecciona 'Escribir contraseña' y guarda vacío para eliminar la Zona Segura.", 
-                            style = MaterialTheme.typography.bodySmall, 
+                            text = if (inputMode == 0) "Nota: Guarda con el campo vacío para eliminar la Zona Segura." else "Nota: Selecciona 'Escribir contraseña' y guarda vacío para eliminar la Zona Segura.",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
@@ -151,7 +190,7 @@ fun SettingsScreen(
     } else {
         MaterialTheme.colorScheme
     }
-    
+
     val colorScheme = if (isFromSafeZone) MaterialTheme.colorScheme else dynamicColorScheme
 
     MaterialTheme(colorScheme = colorScheme) {
@@ -162,8 +201,14 @@ fun SettingsScreen(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                         navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
                     ),
-                    title = { },
+                    title = {
+                        Text(
+                            text = if (isFromSafeZone) "Ajustes de Zona Segura" else "Ajustes",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -177,330 +222,38 @@ fun SettingsScreen(
                     .padding(innerPadding)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Spacer(modifier = Modifier.height(60.dp))
-                
-                Text(
-                    text = if (isFromSafeZone) "Zona Segura" else "Ajustes",
-                    style = TextStyle(
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    ),
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-                
-                Spacer(modifier = Modifier.height(32.dp))
-    
-                Card(
-                    modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    
-                    if (showSecurityOptions) {
-                        if (currentPassword.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Fingerprint,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "Bloqueo por huella", 
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        if (canAuthenticate) "Usa huella para abrir la aplicación" else "No disponible en este dispositivo", 
-                                        style = MaterialTheme.typography.bodyMedium, 
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = isBiometricEnabled,
-                                    onCheckedChange = onBiometricToggle,
-                                    enabled = canAuthenticate
-                                )
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Widgets,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "Widgets de Zona Segura", 
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        if (isWidgetsEnabled) "Permite ver notas en el widget tras huella (10s)" else "Widgets desactivados", 
-                                        style = MaterialTheme.typography.bodyMedium, 
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = isWidgetsEnabled,
-                                    onCheckedChange = { enabled ->
-                                        isWidgetsEnabled = enabled
-                                        sharedPrefs.edit().putBoolean("WIDGETS_ENABLED", enabled).apply()
-                                        coroutineScope.launch(Dispatchers.IO) {
-                                            YNotesWidget().updateAll(context)
-                                        }
-                                    }
-                                )
-                            }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                            
-                            // App Shortcut Mode Selector
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 16.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Apps,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(8.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            "Accesos Directos", 
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            when (isAppHidingEnabled) {
-                                                0 -> "Desactivado"
-                                                1 -> "Apps como acceso rápido"
-                                                2 -> "Apps como vista principal"
-                                                else -> "Desactivado"
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium, 
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                // 3-option selector
-                                val modeLabels = listOf("Desactivado", "Activado", "Reversa")
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surface),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    modeLabels.forEachIndexed { index, label ->
-                                        val isSelected = isAppHidingEnabled == index
-                                        Surface(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clickable { onAppHidingToggle(index) },
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-                                        ) {
-                                            Text(
-                                                text = label,
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(vertical = 10.dp),
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                        }
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Sistema de Libros", 
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    if (isBooksEnabled) "Activado (Organiza tus notas)" else "Desactivado", 
-                                    style = MaterialTheme.typography.bodyMedium, 
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = isBooksEnabled,
-                                onCheckedChange = onBooksToggle
-                            )
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                        
-                        var widgetShowSafeZone by remember { mutableStateOf(sharedPrefs.getBoolean("widget_show_safe_zone", false)) }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Widgets,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Notas del Widget", 
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    if (widgetShowSafeZone) "Mostrando Notas Secretas" else "Mostrando Notas Normales", 
-                                    style = MaterialTheme.typography.bodyMedium, 
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = widgetShowSafeZone,
-                                onCheckedChange = { 
-                                    if (!isFromSafeZone && it) {
-                                        android.widget.Toast.makeText(context, "Actívalo desde la Zona Segura", android.widget.Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        widgetShowSafeZone = it
-                                        sharedPrefs.edit().putBoolean("widget_show_safe_zone", it).apply()
-                                    }
-                                }
-                            )
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                        
-                        SettingItem(
-                            title = if (currentPassword.isEmpty()) "Crear Zona Segura" else "Cambiar Contraseña", 
-                            subtitle = if (currentPassword.isEmpty()) "Inactiva (Toca para crear)" else "Activa (La Zona Segura está protegida)",
-                            icon = Icons.Default.EnhancedEncryption,
-                            iconTint = if (currentPassword.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            onClick = { 
-                                inputPassword = currentPassword
-                                showDialog = true 
-                            }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                    }
-
-                    // Theme Selector
+                // 🎨 CATEGORY 1: APARIENCIA
+                SettingsCategorySection(
+                    title = "Apariencia",
+                    icon = Icons.Default.Palette
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                            .padding(16.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Palette,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(
-                                    "Apariencia", 
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), 
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    when (currentThemeType) {
-                                        0 -> "Actual (Por defecto)"
-                                        1 -> "Google Notes"
-                                        2 -> "Samsung Notes"
-                                        else -> "Actual (Por defecto)"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium, 
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Estilo de la interfaz",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = when (currentThemeType) {
+                                0 -> "Material You Modern (Por defecto)"
+                                1 -> "Google Notes"
+                                2 -> "Samsung Notes"
+                                else -> "Material You Modern"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
-                        val themeLabels = listOf("Actual", "Google", "Samsung")
+
+                        val themeLabels = listOf("Modern", "Google", "Samsung")
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -519,51 +272,235 @@ fun SettingsScreen(
                                 ) {
                                     Text(
                                         text = label,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        ),
                                         color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(vertical = 10.dp),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-
-                    SettingItem(
-                        title = "Acerca de la app", 
-                        subtitle = "yNotes desarrollada para ti", 
-                        icon = Icons.Default.Info,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        onClick = {}
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                    SettingItem(
-                        title = "Versión", 
-                        subtitle = "1.0.0 (AMOLED Edition)", 
-                        icon = Icons.Default.Build,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        onClick = {}
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
-                    SettingItem(
-                        title = "Donaciones.. Llegar a PlayStore <3",
-                        subtitle = "Apóyame para subir la app a la Play Store",
-                        icon = CustomIcons.GooglePlay,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        onClick = { showDonationDialog = true }
-                    )
                 }
+
+                // 🔒 CATEGORY 2: SEGURIDAD & ZONA SEGURA
+                if (showSecurityOptions) {
+                    SettingsCategorySection(
+                        title = "Seguridad & Bóveda",
+                        icon = Icons.Default.Security
+                    ) {
+                        Column {
+                            if (currentPassword.isNotEmpty()) {
+                                // Biometric switch
+                                SettingSwitchItem(
+                                    title = "Bloqueo por huella",
+                                    subtitle = if (canAuthenticate) "Usa huella digital para desbloquear la app" else "No disponible en este dispositivo",
+                                    icon = Icons.Default.Fingerprint,
+                                    checked = isBiometricEnabled,
+                                    enabled = canAuthenticate,
+                                    onCheckedChange = onBiometricToggle
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                                // App Shortcuts / Hiding mode
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                            modifier = Modifier.size(40.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Apps,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(8.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text(
+                                                "Accesos Directos (App Hiding)",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                when (isAppHidingEnabled) {
+                                                    0 -> "Desactivado"
+                                                    1 -> "Pestaña superior en Zona Segura"
+                                                    2 -> "Vista principal de la app"
+                                                    else -> "Desactivado"
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    val modeLabels = listOf("Desactivado", "Activado", "Reversa")
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surface),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        modeLabels.forEachIndexed { index, label ->
+                                            val isSelected = isAppHidingEnabled == index
+                                            Surface(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable { onAppHidingToggle(index) },
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    ),
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(vertical = 10.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+                            }
+
+                            // Create / Change SafeZone password
+                            SettingActionItem(
+                                title = if (currentPassword.isEmpty()) "Crear Zona Segura" else "Modificar Acceso a Bóveda",
+                                subtitle = if (currentPassword.isEmpty()) "Inactiva (Toca para crear tu contraseña cifrada)" else "Activa y protegida con AES-256-GCM",
+                                icon = Icons.Default.EnhancedEncryption,
+                                iconTint = if (currentPassword.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                onClick = {
+                                    inputPassword = currentPassword
+                                    inputMode = currentTriggerMode
+                                    showDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // 📱 CATEGORY 3: ORGANIZACIÓN & WIDGETS
+                SettingsCategorySection(
+                    title = "Organización & Widgets",
+                    icon = Icons.Default.Widgets
+                ) {
+                    Column {
+                        // Notebooks switch
+                        SettingSwitchItem(
+                            title = "Sistema de Cuadernos",
+                            subtitle = if (isBooksEnabled) "Organiza tus notas en carpetas y libros" else "Desactivado",
+                            icon = Icons.AutoMirrored.Filled.MenuBook,
+                            checked = isBooksEnabled,
+                            onCheckedChange = onBooksToggle
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // SafeZone Widgets switch
+                        SettingSwitchItem(
+                            title = "Widget en Pantalla de Inicio",
+                            subtitle = if (isWidgetsEnabled) "Permite sincronizar notas con el widget Glance" else "Widgets desactivados",
+                            icon = Icons.Default.Widgets,
+                            checked = isWidgetsEnabled,
+                            onCheckedChange = { enabled ->
+                                isWidgetsEnabled = enabled
+                                sharedPrefs.edit().putBoolean("WIDGETS_ENABLED", enabled).apply()
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    YNotesWidget().updateAll(context)
+                                }
+                            }
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // Widget content switch (Normal vs SafeZone notes)
+                        SettingSwitchItem(
+                            title = "Contenido del Widget",
+                            subtitle = if (widgetShowSafeZone) "Mostrando Notas Secretas" else "Mostrando Notas Normales",
+                            icon = Icons.Default.FilterList,
+                            checked = widgetShowSafeZone,
+                            onCheckedChange = { enabled ->
+                                if (!isFromSafeZone && enabled) {
+                                    android.widget.Toast.makeText(context, "Actívalo desde la Zona Segura", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    widgetShowSafeZone = enabled
+                                    sharedPrefs.edit().putBoolean("widget_show_safe_zone", enabled).apply()
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        YNotesWidget().updateAll(context)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+
+                // ℹ️ CATEGORY 4: INFORMACIÓN & DONACIONES
+                SettingsCategorySection(
+                    title = "Información & Proyecto",
+                    icon = Icons.Default.Info
+                ) {
+                    Column {
+                        SettingActionItem(
+                            title = "Versión instalada",
+                            subtitle = "v$appVersion · Edición yNotes (id: y.notes)",
+                            icon = Icons.Default.CheckCircle,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = {}
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingActionItem(
+                            title = "Acerca de la app",
+                            subtitle = "yNotes desarrollada por uamo11 & renovada con Compose y Material 3",
+                            icon = Icons.Default.Code,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = {}
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingActionItem(
+                            title = "Donaciones y Apoyo",
+                            subtitle = "Apóyame para publicar la app en Google Play Store",
+                            icon = CustomIcons.GooglePlay,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = { showDonationDialog = true }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
-    
+
     if (showDonationDialog) {
         AlertDialog(
             onDismissRequest = { showDonationDialog = false },
-            title = { Text("Donaciones", style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp)) },
-            text = { Text("¿Con qué plataforma deseas apoyar el proyecto?") },
+            title = {
+                Text(
+                    text = "Apoyar el Proyecto",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Text("¿Con qué plataforma deseas realizar tu aporte para llevar yNotes a la Google Play Store?")
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -595,15 +532,107 @@ fun SettingsScreen(
         )
     }
 }
+
+@Composable
+fun SettingsCategorySection(
+    title: String,
+    icon: ImageVector,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            content()
+        }
+    }
 }
 
 @Composable
-fun SettingItem(title: String, subtitle: String, icon: ImageVector, iconTint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+fun SettingSwitchItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
+    }
+}
+
+@Composable
+fun SettingActionItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -625,12 +654,18 @@ fun SettingItem(title: String, subtitle: String, icon: ImageVector, iconTint: an
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

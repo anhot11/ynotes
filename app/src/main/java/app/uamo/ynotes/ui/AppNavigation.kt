@@ -182,6 +182,9 @@ fun AppNavigation(
                 },
                 onTrashClick = {
                     navController.navigate("trash")
+                },
+                onDeleteNotes = { ids ->
+                    viewModel.deleteNotes(ids)
                 }
             )
         }
