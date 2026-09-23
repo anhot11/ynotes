@@ -113,6 +113,7 @@ fun AppNavigation(
     }
 
     val isSafeZoneUnlocked by viewModel.isSafeZoneUnlocked.collectAsStateWithLifecycle()
+    val books by viewModel.books.collectAsStateWithLifecycle()
 
     LaunchedEffect(isSafeZoneUnlocked) {
         if (!isSafeZoneUnlocked) {
@@ -177,6 +178,7 @@ fun AppNavigation(
                     navController.navigate("settings/home")
                 },
                 isBooksEnabled = isBooksEnabled,
+                books = books,
                 onBooksClick = {
                     navController.navigate("books/public")
                 },
@@ -237,8 +239,6 @@ fun AppNavigation(
                 if (isSecret) secretNotes.find { it.id == noteId }
                 else publicNotes.find { it.id == noteId }
             } else null
-
-            val books by viewModel.books.collectAsStateWithLifecycle()
 
             EditorScreen(
                 editingNote = editingNote,

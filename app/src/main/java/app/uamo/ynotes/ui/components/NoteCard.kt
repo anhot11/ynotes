@@ -2,32 +2,28 @@ package app.uamo.ynotes.ui.components
 
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,17 +36,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.NoteEntity
+import app.uamo.ynotes.ui.theme.*
 import app.uamo.ynotes.utils.MediaManager
 import app.uamo.ynotes.utils.parseMarkdown
+import app.uamo.ynotes.utils.sharedElementTransition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import app.uamo.ynotes.utils.sharedElementTransition
-
-import app.uamo.ynotes.ui.theme.AuroraPrimary
-import app.uamo.ynotes.ui.theme.GlassBorder
-import app.uamo.ynotes.ui.theme.LocalAppTheme
-import app.uamo.ynotes.ui.theme.AppThemeType
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun NoteCard(
@@ -59,10 +56,11 @@ fun NoteCard(
     onLongPress: ((NoteEntity) -> Unit)? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
+    bookName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val currentTheme = LocalAppTheme.current
-    val cardColor = if (note.color == 0L) MaterialTheme.colorScheme.surfaceVariant else Color(note.color)
+    val isDark = isSystemInDarkTheme() || currentTheme == AppThemeType.AMOLED
     val context = LocalContext.current
 
     // Load first media thumbnail if available
@@ -74,194 +72,298 @@ fun NoteCard(
     LaunchedEffect(note.id, mediaFileNames.firstOrNull()) {
         if (mediaFileNames.isNotEmpty()) {
             firstBitmap = withContext(Dispatchers.IO) {
-                MediaManager.loadMediaBitmap(context, note.id, mediaFileNames.first(), note.isSecret, maxSize = 256)
+                MediaManager.loadMediaBitmap(context, note.id, mediaFileNames.first(), note.isSecret, maxSize = 300)
             }
         } else {
             firstBitmap = null
         }
     }
 
-    // Animated selection border color
+    // Interactive scale spring on press
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.65f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "cardScale"
+    )
+
+    // Animated selection borders
+    val targetBorderColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        currentTheme == AppThemeType.SAMSUNG -> Color.Transparent
+        else -> getNoteCardBorderColor(note.color, isDark)
+    }
     val borderColor by animateColorAsState(
-        targetValue = when {
-            isSelected -> MaterialTheme.colorScheme.primary
-            currentTheme == AppThemeType.SAMSUNG -> Color.Transparent
-            else -> MaterialTheme.colorScheme.outline
-        },
+        targetValue = targetBorderColor,
         animationSpec = tween(200),
-        label = "border"
+        label = "borderColor"
     )
     val borderWidth by animateDpAsState(
-        targetValue = if (isSelected) 2.5.dp else if (currentTheme == AppThemeType.SAMSUNG) 0.dp else 1.dp,
+        targetValue = if (isSelected) 2.5.dp else 1.dp,
         animationSpec = tween(200),
         label = "borderWidth"
     )
 
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "scale"
-    )
-
-    val baseModifier = modifier
-        .fillMaxWidth()
-        .sharedElementTransition("note-${note.id}")
-        .scale(scale)
-        .clip(RoundedCornerShape(if (currentTheme == AppThemeType.GOOGLE) 16.dp else 28.dp))
-        .border(borderWidth, borderColor, RoundedCornerShape(if (currentTheme == AppThemeType.GOOGLE) 16.dp else 28.dp))
-        .pointerInput(isSelectionMode) {
-            detectTapGestures(
-                onPress = {
-                    isPressed = true
-                    tryAwaitRelease()
-                    isPressed = false
-                },
-                onTap = {
-                    onClick(note)
-                },
-                onLongPress = {
-                    onLongPress?.invoke(note)
-                }
-            )
-        }
-
-    val finalModifier = if (note.isPinned && !isSelected) {
-        if (currentTheme == AppThemeType.AMOLED) {
-            baseModifier.background(AuroraPrimary)
-        } else {
-            baseModifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-        }
-    } else if (isSelected) {
-        baseModifier.background(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-        )
-    } else {
-        baseModifier
+    val cardShape = RoundedCornerShape(20.dp)
+    val cardBrush = remember(note.color, isDark) {
+        getNoteCardBrush(note.color, isDark)
     }
 
-    Card(
-        modifier = finalModifier,
-        shape = RoundedCornerShape(if (currentTheme == AppThemeType.GOOGLE) 16.dp else 28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                isSelected -> Color.Transparent
-                note.isPinned && currentTheme == AppThemeType.AMOLED -> Color.Transparent
-                else -> cardColor
+    // Relative date calculation
+    val formattedDate = remember(note.updatedAt) {
+        formatRelativeDate(note.updatedAt)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .sharedElementTransition("note-${note.id}")
+            .scale(scale)
+            .clip(cardShape)
+            .background(cardBrush)
+            .border(borderWidth, borderColor, cardShape)
+            .pointerInput(isSelectionMode) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = { onClick(note) },
+                    onLongPress = { onLongPress?.invoke(note) }
+                )
             }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 0.dp else 8.dp)
     ) {
-        Box {
-            Column {
-                // Image preview at top of card
-                if (firstBitmap != null) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 🖼️ Image preview thumbnail if attached
+            if (firstBitmap != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                ) {
                     Image(
                         bitmap = firstBitmap!!.asImageBitmap(),
                         contentDescription = "Imagen adjunta",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
+                        modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                    // Photo counter badge overlay
+                    if (mediaFileNames.size > 1) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.65f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Photo,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "+${mediaFileNames.size}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
+            }
 
-                Column(modifier = Modifier.padding(20.dp)) {
+            // 📝 Card Body & Details
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Top Tag Row: Notebook, Pinned, and Widget indicators
+                val hasTopBadges = bookName != null || note.isPinned || note.isWidgetSpecial
+                if (hasTopBadges) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (note.title.isNotEmpty()) {
-                            Text(
-                                text = note.title,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (note.isPinned && !isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
+                        if (bookName != null) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(11.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = bookName,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         } else {
                             Spacer(modifier = Modifier.weight(1f))
                         }
 
-                        if (note.isPinned && !isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.PushPin,
-                                contentDescription = "Fijado",
-                                modifier = Modifier.size(16.dp).padding(start = 4.dp),
-                                tint = Color.White.copy(alpha = 0.8f)
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (note.isWidgetSpecial) {
+                                Icon(
+                                    Icons.Default.Widgets,
+                                    contentDescription = "En Widget",
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .padding(end = 4.dp)
+                                )
+                            }
+                            if (note.isPinned) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.PushPin,
+                                        contentDescription = "Fijada",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(3.dp)
+                                    )
+                                }
+                            }
                         }
-                    }
-
-                    if (note.body.isNotEmpty() && !note.isBodyHidden) {
-                        if (note.title.isNotEmpty()) Spacer(modifier = Modifier.height(6.dp))
-                        val bodyTextColor = if (note.isPinned && !isSelected) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
-                        Text(
-                            text = parseMarkdown(note.body, bodyTextColor),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = bodyTextColor,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (mediaFileNames.isNotEmpty()) {
-                            Icon(
-                                imageVector = Icons.Default.Photo,
-                                contentDescription = "Nota con imágenes adjuntas",
-                                modifier = Modifier.size(14.dp),
-                                tint = (if (note.isPinned && !isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                        Icon(
-                            imageVector = if (note.isSecret) Icons.Default.VpnKey else Icons.Default.Description,
-                            contentDescription = if (note.isSecret) "Nota secreta cifrada" else "Nota pública",
-                            modifier = Modifier.size(16.dp),
-                            tint = (if (note.isSecret) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.5f)
-                        )
                     }
                 }
-            }
 
-            // Selection checkmark overlay
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                        .size(24.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "Nota seleccionada",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                // Title
+                if (note.title.isNotEmpty()) {
+                    Text(
+                        text = note.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-            } else if (isSelectionMode) {
-                // Empty circle indicator
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                        .size(24.dp)
-                        .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
-                )
+
+                // Body Markdown snippet
+                if (note.body.isNotEmpty() && !note.isBodyHidden) {
+                    if (note.title.isNotEmpty()) Spacer(modifier = Modifier.height(6.dp))
+                    val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        text = parseMarkdown(note.body, bodyColor),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 20.sp
+                        ),
+                        color = bodyColor,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Bottom Meta Row: Date, Word count, Vault indicator
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formattedDate,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (note.isSecret) {
+                            Icon(
+                                Icons.Default.VpnKey,
+                                contentDescription = "Nota cifrada",
+                                modifier = Modifier.size(13.dp),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
             }
         }
+
+        // Selection Checkmark Overlay
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(26.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Nota seleccionada",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        } else if (isSelectionMode) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(26.dp)
+                    .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+            )
+        }
     }
+}
+
+/**
+ * Returns formatted relative date (e.g. "Hoy, 14:20", "Ayer", "15 sep").
+ */
+private fun formatRelativeDate(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    if (diff < 60_000L) return "Ahora"
+    if (diff < 3600_000L) return "Hace ${diff / 60_000L} min"
+
+    val calendarNow = Calendar.getInstance()
+    val calendarNote = Calendar.getInstance().apply { timeInMillis = timestamp }
+
+    val isToday = calendarNow.get(Calendar.YEAR) == calendarNote.get(Calendar.YEAR) &&
+            calendarNow.get(Calendar.DAY_OF_YEAR) == calendarNote.get(Calendar.DAY_OF_YEAR)
+
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    if (isToday) return "Hoy, ${timeFormat.format(Date(timestamp))}"
+
+    val isYesterday = calendarNow.get(Calendar.YEAR) == calendarNote.get(Calendar.YEAR) &&
+            calendarNow.get(Calendar.DAY_OF_YEAR) - calendarNote.get(Calendar.DAY_OF_YEAR) == 1
+    if (isYesterday) return "Ayer, ${timeFormat.format(Date(timestamp))}"
+
+    val dateFormat = SimpleDateFormat("d MMM", Locale.getDefault())
+    return dateFormat.format(Date(timestamp))
 }

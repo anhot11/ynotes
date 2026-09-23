@@ -3,8 +3,10 @@ package app.uamo.ynotes.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -29,18 +31,23 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
 import app.uamo.ynotes.ui.components.NoteCard
 import app.uamo.ynotes.ui.theme.AppThemeType
 import app.uamo.ynotes.ui.theme.AuroraPrimary
 import app.uamo.ynotes.ui.theme.LocalAppTheme
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-enum class HomeFilter(val label: String) {
-    ALL("Todas"),
-    PINNED("📌 Fijadas"),
-    WITH_MEDIA("📷 Con fotos"),
-    WIDGET("⏱️ En Widget")
+enum class HomeFilter(val label: String, val icon: String) {
+    ALL("Todas", "✨"),
+    PINNED("Fijadas", "📌"),
+    WITH_MEDIA("Con fotos", "📷"),
+    WIDGET("En Widget", "⏱️")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +62,7 @@ fun HomeScreen(
     safeZoneTriggerMode: Int,
     isBiometricEnabled: Boolean,
     isBooksEnabled: Boolean,
+    books: List<BookEntity> = emptyList(),
     onRequestSafeZone: () -> Unit,
     onRequestSafeZoneBiometric: () -> Unit,
     onAddNote: () -> Unit,
@@ -69,6 +77,10 @@ fun HomeScreen(
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
 
+    val booksMap = remember(books) {
+        books.associate { it.id to it.name }
+    }
+
     LaunchedEffect(searchQuery) {
         if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery == safeZonePassword) {
             onSearchQueryChange("")
@@ -76,7 +88,7 @@ fun HomeScreen(
         }
     }
 
-    // Filter by category chip
+    // Filter notes
     val filteredByChip = remember(notes, selectedFilter) {
         when (selectedFilter) {
             HomeFilter.ALL -> notes
@@ -89,6 +101,21 @@ fun HomeScreen(
     val pinnedNotes = remember(filteredByChip) { filteredByChip.filter { it.isPinned } }
     val unpinnedNotes = remember(filteredByChip) { filteredByChip.filter { !it.isPinned } }
     val currentTheme = LocalAppTheme.current
+    val isDark = isSystemInDarkTheme() || currentTheme == AppThemeType.AMOLED
+
+    // Dynamic greeting & date
+    val greeting = remember {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when (hour) {
+            in 6..12 -> "Buenos días"
+            in 13..19 -> "Buenas tardes"
+            else -> "Buenas noches"
+        }
+    }
+    val currentDateStr = remember {
+        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es", "ES"))
+        dateFormat.format(Date()).replaceFirstChar { it.uppercase() }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -102,7 +129,7 @@ fun HomeScreen(
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 8.dp,
-                    shadowElevation = 8.dp,
+                    shadowElevation = 10.dp,
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -173,20 +200,13 @@ fun HomeScreen(
                     label = "fabScale"
                 )
 
-                val fabShape = when (currentTheme) {
-                    AppThemeType.GOOGLE -> RoundedCornerShape(16.dp)
-                    AppThemeType.SAMSUNG -> CircleShape
-                    else -> RoundedCornerShape(20.dp)
-                }
-
                 Box(
                     modifier = Modifier
-                        .padding(end = 8.dp, bottom = 8.dp)
+                        .padding(end = 4.dp, bottom = 4.dp)
                         .scale(fabScale)
-                        .background(
-                            brush = if (currentTheme == AppThemeType.AMOLED) AuroraPrimary else SolidColor(MaterialTheme.colorScheme.primary),
-                            shape = fabShape
-                        )
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AuroraPrimary)
+                        .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onPress = {
@@ -203,16 +223,16 @@ fun HomeScreen(
                                 }
                             )
                         }
-                        .padding(horizontal = 22.dp, vertical = 16.dp),
+                        .padding(horizontal = 22.dp, vertical = 15.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, "Añadir Nota", tint = Color.White)
+                        Icon(Icons.Default.Edit, "Añadir Nota", tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             "Nueva nota",
                             color = Color.White,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -225,27 +245,126 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Modern Floating Material 3 SearchBar & Actions Header
+            // 🌟 HERO HEADER: Identity, Greeting & Glass Actions
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "yNotes",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = (-0.5).sp
+                                ),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$greeting · $currentDateStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                        )
+                    }
+
+                    // Glass Header Action Buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isBooksEnabled) {
+                            HeaderGlassButton(
+                                icon = Icons.AutoMirrored.Filled.MenuBook,
+                                contentDescription = "Cuadernos",
+                                onClick = onBooksClick
+                            )
+                        }
+                        HeaderGlassButton(
+                            icon = Icons.Default.DeleteOutline,
+                            contentDescription = "Papelera",
+                            onClick = onTrashClick
+                        )
+                        HeaderGlassButton(
+                            icon = Icons.Default.Settings,
+                            contentDescription = "Ajustes",
+                            onClick = onSettingsClick,
+                            onLongPress = {
+                                if (safeZoneTriggerMode == 2) {
+                                    if (isBiometricEnabled) onRequestSafeZoneBiometric()
+                                    else onRequestSafeZone()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                // Stats capsule badge
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${notes.size} notas guardadas",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (pinnedNotes.isNotEmpty()) {
+                                Text(
+                                    text = "  ·  ${notes.count { it.isPinned }} fijadas",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 🔍 DEDICATED SLEEK SEARCH BAR
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                tonalElevation = 2.dp
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Buscar",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(22.dp)
                             .pointerInput(Unit) {
                                 detectTapGestures(
                                     onLongPress = {
@@ -263,16 +382,16 @@ fun HomeScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         if (searchQuery.isEmpty()) {
                             Text(
-                                text = "Buscar notas...",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                text = "Buscar por título, contenido o palabra clave...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             )
                         }
                         BasicTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChange,
                             textStyle = TextStyle(
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             ),
                             modifier = Modifier.fillMaxWidth(),
@@ -284,27 +403,28 @@ fun HomeScreen(
                     if (searchQuery.isNotEmpty()) {
                         IconButton(
                             onClick = { onSearchQueryChange("") },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Limpiar búsqueda",
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    // Sort menu
+                    // Sort menu button
                     Box {
                         IconButton(
                             onClick = { showSortMenu = true },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Sort,
                                 contentDescription = "Ordenar notas",
-                                tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
@@ -343,126 +463,110 @@ fun HomeScreen(
                             }
                         }
                     }
-
-                    if (isBooksEnabled) {
-                        IconButton(
-                            onClick = onBooksClick,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                contentDescription = "Libros",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    IconButton(
-                        onClick = onTrashClick,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Papelera",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Settings Icon with SafeZone trigger
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = { onSettingsClick() },
-                                    onLongPress = {
-                                        if (safeZoneTriggerMode == 2) {
-                                            if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                            else onRequestSafeZone()
-                                        }
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Configuración",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
 
-            // Interactive Category Filter Chips Row
+            // 🏷️ INTERACTIVE FILTER PILLS ROW
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items(HomeFilter.entries) { filter ->
                     val isSelected = selectedFilter == filter
-                    FilterChip(
-                        selected = isSelected,
+                    val count = when (filter) {
+                        HomeFilter.ALL -> notes.size
+                        HomeFilter.PINNED -> notes.count { it.isPinned }
+                        HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
+                        HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
+                    }
+
+                    Surface(
                         onClick = { selectedFilter = filter },
-                        label = {
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = filter.label,
+                                text = "${filter.icon} ${filter.label}",
                                 style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = "$count",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Main Notes Grid or Empty State
+            // 📋 MAIN NOTES STAGGERED GRID OR INSPIRING EMPTY STATE
             if (filteredByChip.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(32.dp),
+                        .padding(horizontal = 32.dp, vertical = 48.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Description,
-                        contentDescription = "Sin notas",
-                        modifier = Modifier.size(72.dp),
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        modifier = Modifier.size(90.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Description,
+                            contentDescription = "Sin notas",
+                            modifier = Modifier.padding(24.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = if (searchQuery.isNotBlank()) "Sin notas para \"$searchQuery\""
+                        text = if (searchQuery.isNotBlank()) "Sin resultados para \"$searchQuery\""
                         else if (selectedFilter != HomeFilter.ALL) "No hay notas en ${selectedFilter.label}"
-                        else "Tu libreta está vacía",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        else "Tu espacio creativo está listo",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Toca 'Nueva nota' para plasmar tu primera idea.",
+                        text = "Escribe pensamientos, notas personales o ideas importantes con privacidad total y cifrado local.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = onAddNote,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Crear nota")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Escribir mi primera nota")
                     }
                 }
             } else {
@@ -473,7 +577,7 @@ fun HomeScreen(
                         start = 16.dp,
                         end = 16.dp,
                         top = 8.dp,
-                        bottom = if (isSelectionMode) 88.dp else 80.dp
+                        bottom = if (isSelectionMode) 96.dp else 88.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp
@@ -486,13 +590,13 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     "FIJADAS",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                     shape = CircleShape
                                 ) {
                                     Text(
@@ -500,7 +604,7 @@ fun HomeScreen(
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
@@ -520,7 +624,8 @@ fun HomeScreen(
                                     selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
                                 },
                                 isSelected = isSelected,
-                                isSelectionMode = isSelectionMode
+                                isSelectionMode = isSelectionMode,
+                                bookName = note.bookId?.let { booksMap[it] }
                             )
                         }
                     }
@@ -530,11 +635,11 @@ fun HomeScreen(
                             item(span = StaggeredGridItemSpan.FullLine) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 12.dp)
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 14.dp)
                                 ) {
                                     Text(
-                                        "TODAS LAS NOTAS",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        "OTRAS NOTAS",
+                                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -569,12 +674,44 @@ fun HomeScreen(
                                     selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
                                 },
                                 isSelected = isSelected,
-                                isSelectionMode = isSelectionMode
+                                isSelectionMode = isSelectionMode,
+                                bookName = note.bookId?.let { booksMap[it] }
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HeaderGlassButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)? = null
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .size(40.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongPress?.invoke() }
+                )
+            }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(19.dp)
+            )
         }
     }
 }

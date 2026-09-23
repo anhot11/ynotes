@@ -12,7 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
+import app.uamo.ynotes.ui.theme.*
 import app.uamo.ynotes.utils.MediaManager
 import app.uamo.ynotes.utils.sharedElementTransition
 import kotlinx.coroutines.Dispatchers
@@ -48,25 +50,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
-
-val NoteColors = listOf(
-    0L, // Default (uses surfaceVariant)
-    0xFF4A1C1C, // Dark Red
-    0xFF4A1C3B, // Dark Pink
-    0xFF3B1C4A, // Dark Purple
-    0xFF2C1C4A, // Dark Deep Purple
-    0xFF1C2A4A, // Dark Indigo
-    0xFF1C3A4A, // Dark Blue
-    0xFF1C4A47, // Dark Cyan
-    0xFF1C4A3B, // Dark Teal
-    0xFF1C4A22, // Dark Green
-    0xFF2F4A1C, // Dark Light Green
-    0xFF4A471C, // Dark Lime
-    0xFF4A421C, // Dark Yellow
-    0xFF4A351C, // Dark Amber
-    0xFF4A2B1C, // Dark Orange
-    0xFF4A221C  // Dark Deep Orange
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +78,8 @@ fun EditorScreen(
     var isFocusMode by remember { mutableStateOf(false) }
     var showPropertiesSheet by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+
+    val isDark = isSystemInDarkTheme() || LocalAppTheme.current == AppThemeType.AMOLED
 
     // Media state
     var mediaFileNames by remember {
@@ -474,7 +459,7 @@ fun EditorScreen(
                     Box(modifier = Modifier.fillMaxSize()) {
                         if (bodyText.isEmpty()) {
                             Text(
-                                text = "Escribe tu nota...",
+                                text = "Escribe tu nota... (Soporta Markdown: **negrita**, *cursiva*, # títulos, etc.)",
                                 style = TextStyle(
                                     fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -493,12 +478,65 @@ fun EditorScreen(
                             },
                             textStyle = TextStyle(
                                 fontSize = 16.sp,
-                                color = onBackgroundColor
+                                color = onBackgroundColor,
+                                lineHeight = 24.sp
                             ),
                             modifier = Modifier.fillMaxSize(),
                             cursorBrush = SolidColor(cursorColor),
                             visualTransformation = visualTransformation
                         )
+                    }
+                }
+
+                // ⚡ QUICK MARKDOWN FORMATTING TOOLBAR
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MarkdownToolbarChip(label = "B", title = "Negrita") {
+                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " **texto**" else "**texto**"
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "I", title = "Cursiva") {
+                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " *texto*" else "*texto*"
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "H1", title = "Título 1") {
+                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "# " else "\n# "
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "H2", title = "Título 2") {
+                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "## " else "\n## "
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "•", title = "Lista con viñetas") {
+                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "- " else "\n- "
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "☑", title = "Casilla de verificación") {
+                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "- [ ] " else "\n- [ ] "
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "\"", title = "Cita en bloque") {
+                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "> " else "\n> "
+                            scheduleSave()
+                        }
+                        MarkdownToolbarChip(label = "<>", title = "Código") {
+                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " `código`" else "`código`"
+                            scheduleSave()
+                        }
                     }
                 }
 
@@ -591,7 +629,7 @@ fun EditorScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // 1. Color Palette
+                // 1. Color Palette with modern gradients
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Color de nota",
@@ -606,19 +644,16 @@ fun EditorScreen(
                     ) {
                         NoteColors.forEach { colorValue ->
                             val isSelected = noteColor == colorValue
-                            val displayColor = if (colorValue == 0L)
-                                MaterialTheme.colorScheme.surfaceVariant
-                            else
-                                Color(colorValue)
+                            val swatchBrush = getNoteCardBrush(colorValue, isDark)
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(46.dp)
                                     .clip(CircleShape)
-                                    .background(displayColor)
+                                    .background(swatchBrush)
                                     .border(
                                         width = if (isSelected) 3.dp else 1.dp,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary
-                                                else app.uamo.ynotes.ui.theme.GlassBorder,
+                                                else getNoteCardBorderColor(colorValue, isDark),
                                         shape = CircleShape
                                     )
                                     .clickable {
@@ -631,7 +666,7 @@ fun EditorScreen(
                                     Icon(
                                         Icons.Default.Check,
                                         contentDescription = "Color seleccionado",
-                                        tint = Color.White.copy(alpha = 0.9f),
+                                        tint = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -828,6 +863,33 @@ fun EditorScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownToolbarChip(
+    label: String,
+    title: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+    ) {
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minWidth = 36.dp, minHeight = 32.dp)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
