@@ -225,15 +225,21 @@ fun AppNavigation(
         }
 
         sharedComposable(
-            route = "editor/{type}/{noteId}",
+            route = "editor/{type}/{noteId}?bookId={bookId}",
             arguments = listOf(
                 navArgument("type") { type = NavType.StringType },
-                navArgument("noteId") { type = NavType.StringType }
+                navArgument("noteId") { type = NavType.StringType },
+                navArgument("bookId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
         ) { backStackEntry ->
             val type = backStackEntry.arguments?.getString("type") ?: "public"
             val isSecret = type == "secret"
             val noteId = backStackEntry.arguments?.getString("noteId")
+            val bookIdArg = backStackEntry.arguments?.getString("bookId")
             
             val editingNote = if (noteId != "new") {
                 if (isSecret) secretNotes.find { it.id == noteId }
@@ -242,6 +248,7 @@ fun AppNavigation(
 
             EditorScreen(
                 editingNote = editingNote,
+                initialBookId = bookIdArg,
                 isSecret = isSecret,
                 isBooksEnabled = isBooksEnabled,
                 books = books.filter { it.isSecret == isSecret },
@@ -356,10 +363,10 @@ fun AppNavigation(
                 book = book,
                 notes = bookNotes,
                 onNoteClick = { note ->
-                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/${note.id}")
+                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/${note.id}?bookId=${book.id}")
                 },
                 onAddNote = {
-                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/new")
+                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/new?bookId=${book.id}")
                 },
                 onNavigateBack = {
                     navController.popBackStack()

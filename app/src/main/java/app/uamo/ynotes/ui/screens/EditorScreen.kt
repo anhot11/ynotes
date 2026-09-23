@@ -61,6 +61,7 @@ val NoteColors = app.uamo.ynotes.ui.theme.NoteColors
 @Composable
 fun EditorScreen(
     editingNote: NoteEntity?,
+    initialBookId: String? = null,
     isSecret: Boolean,
     isBooksEnabled: Boolean,
     books: List<BookEntity>,
@@ -76,7 +77,7 @@ fun EditorScreen(
     var hideMarkdownSyntax by remember { mutableStateOf(true) }
     var noteColor by remember { mutableStateOf(editingNote?.color ?: 0L) }
     var isPinned by remember { mutableStateOf(editingNote?.isPinned ?: false) }
-    var bookId by remember { mutableStateOf(editingNote?.bookId) }
+    var bookId by remember { mutableStateOf(editingNote?.bookId ?: initialBookId) }
     var isBodyHidden by remember { mutableStateOf(editingNote?.isBodyHidden ?: false) }
     var isDeleted by remember { mutableStateOf(false) }
     var isWidgetSpecial by remember { mutableStateOf(editingNote?.isWidgetSpecial ?: false) }
@@ -472,6 +473,38 @@ fun EditorScreen(
                         .padding(horizontal = 24.dp)
                         .weight(1f)
                 ) {
+                    if (isBooksEnabled && books.isNotEmpty()) {
+                        val currentBook = books.find { it.id == bookId }
+                        Surface(
+                            onClick = { showPropertiesSheet = true },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (currentBook != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (currentBook != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            ),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = null,
+                                    tint = if (currentBook != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = currentBook?.let { "Cuaderno: ${it.name}" } ?: "Sin cuaderno (Toca para asignar)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (currentBook != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (titleText.isEmpty()) {
                             Text(

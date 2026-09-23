@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
@@ -75,6 +76,7 @@ fun HomeScreen(
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
+    var selectedBookFilterId by remember { mutableStateOf<String?>(null) }
     var showFilterPills by remember { mutableStateOf(false) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
@@ -91,12 +93,16 @@ fun HomeScreen(
     }
 
     // Filter notes
-    val filteredByChip = remember(notes, selectedFilter) {
-        when (selectedFilter) {
-            HomeFilter.ALL -> notes
-            HomeFilter.PINNED -> notes.filter { it.isPinned }
-            HomeFilter.WITH_MEDIA -> notes.filter { it.mediaFiles.isNotBlank() }
-            HomeFilter.WIDGET -> notes.filter { it.isWidgetSpecial }
+    val filteredByChip = remember(notes, selectedFilter, selectedBookFilterId) {
+        if (selectedBookFilterId != null) {
+            notes.filter { it.bookId == selectedBookFilterId }
+        } else {
+            when (selectedFilter) {
+                HomeFilter.ALL -> notes
+                HomeFilter.PINNED -> notes.filter { it.isPinned }
+                HomeFilter.WITH_MEDIA -> notes.filter { it.mediaFiles.isNotBlank() }
+                HomeFilter.WIDGET -> notes.filter { it.isWidgetSpecial }
+            }
         }
     }
 
@@ -258,7 +264,11 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "yNotes",
@@ -280,13 +290,16 @@ fun HomeScreen(
                         Text(
                             text = "$greeting · $currentDateStr",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
                     // Glass Header Action Buttons
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.wrapContentWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (isBooksEnabled) {
@@ -424,7 +437,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = if (showFilterPills) "Ocultar filtros" else "Mostrar filtros",
-                            tint = if (showFilterPills || selectedFilter != HomeFilter.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (showFilterPills || selectedFilter != HomeFilter.ALL || selectedBookFilterId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -483,7 +496,7 @@ fun HomeScreen(
 
             // 🏷️ INTERACTIVE FILTER PILLS ROW (Collapsible to save vertical space)
             AnimatedVisibility(
-                visible = showFilterPills || selectedFilter != HomeFilter.ALL,
+                visible = showFilterPills || selectedFilter != HomeFilter.ALL || selectedBookFilterId != null,
                 enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
                 exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
             ) {
@@ -495,7 +508,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items(HomeFilter.entries) { filter ->
-                        val isSelected = selectedFilter == filter
+                        val isSelected = selectedFilter == filter && selectedBookFilterId == null
                         val count = when (filter) {
                             HomeFilter.ALL -> notes.size
                             HomeFilter.PINNED -> notes.count { it.isPinned }
@@ -504,7 +517,10 @@ fun HomeScreen(
                         }
 
                         Surface(
-                            onClick = { selectedFilter = filter },
+                            onClick = {
+                                selectedFilter = filter
+                                selectedBookFilterId = null
+                            },
                             shape = RoundedCornerShape(14.dp),
                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                             border = androidx.compose.foundation.BorderStroke(
@@ -534,6 +550,55 @@ fun HomeScreen(
                                         color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    if (isBooksEnabled && books.isNotEmpty()) {
+                        items(books, key = { it.id }) { book ->
+                            val isSelected = selectedBookFilterId == book.id
+                            val count = notes.count { it.bookId == book.id }
+
+                            Surface(
+                                onClick = {
+                                    if (selectedBookFilterId == book.id) {
+                                        selectedBookFilterId = null
+                                        selectedFilter = HomeFilter.ALL
+                                    } else {
+                                        selectedBookFilterId = book.id
+                                    }
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "📖 ${book.name}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Text(
+                                            text = "$count",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -570,6 +635,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
                         text = if (searchQuery.isNotBlank()) "Sin resultados para \"$searchQuery\""
+                        else if (selectedBookFilterId != null) "No hay notas en \"${booksMap[selectedBookFilterId] ?: "este cuaderno"}\""
                         else if (selectedFilter != HomeFilter.ALL) "No hay notas en ${selectedFilter.label}"
                         else "Tu espacio creativo está listo",
                         style = MaterialTheme.typography.titleLarge.copy(
@@ -735,7 +801,7 @@ private fun HeaderGlassButton(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         modifier = Modifier
-            .size(40.dp)
+            .size(38.dp)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { onClick() },

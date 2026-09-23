@@ -425,26 +425,24 @@ fun SettingsScreen(
                             }
                         )
 
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
+                        // Widget content switch (Normal vs SafeZone notes) - only available from Safe Zone
+                        if (isFromSafeZone) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
 
-                        // Widget content switch (Normal vs SafeZone notes)
-                        SettingSwitchItem(
-                            title = "Contenido del Widget",
-                            subtitle = if (widgetShowSafeZone) "Mostrando Notas Secretas" else "Mostrando Notas Normales",
-                            icon = Icons.Default.FilterList,
-                            checked = widgetShowSafeZone,
-                            onCheckedChange = { enabled ->
-                                if (!isFromSafeZone && enabled) {
-                                    android.widget.Toast.makeText(context, "Actívalo desde la Zona Segura", android.widget.Toast.LENGTH_SHORT).show()
-                                } else {
+                            SettingSwitchItem(
+                                title = "Contenido del Widget",
+                                subtitle = if (widgetShowSafeZone) "Mostrando Notas Secretas" else "Mostrando Notas Normales",
+                                icon = Icons.Default.FilterList,
+                                checked = widgetShowSafeZone,
+                                onCheckedChange = { enabled ->
                                     widgetShowSafeZone = enabled
                                     sharedPrefs.edit().putBoolean("widget_show_safe_zone", enabled).apply()
                                     coroutineScope.launch(Dispatchers.IO) {
                                         YNotesWidget().updateAll(context)
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
 
@@ -459,7 +457,8 @@ fun SettingsScreen(
                             subtitle = "v$appVersion · Edición yNotes (id: y.notes)",
                             icon = Icons.Default.CheckCircle,
                             iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = {}
+                            showChevron = false,
+                            onClick = null
                         )
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
@@ -469,7 +468,8 @@ fun SettingsScreen(
                             subtitle = "yNotes desarrollada por uamo11 & renovada con Compose y Material 3",
                             icon = Icons.Default.Code,
                             iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = {}
+                            showChevron = false,
+                            onClick = null
                         )
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
@@ -626,13 +626,16 @@ fun SettingActionItem(
     subtitle: String,
     icon: ImageVector,
     iconTint: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit
+    showChevron: Boolean = true,
+    onClick: (() -> Unit)? = null
 ) {
+    val rowModifier = Modifier
+        .fillMaxWidth()
+        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        .padding(horizontal = 16.dp, vertical = 14.dp)
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -661,11 +664,13 @@ fun SettingActionItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp)
-        )
+        if (showChevron) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
