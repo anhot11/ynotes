@@ -57,6 +57,11 @@ import java.util.UUID
 
 val NoteColors = app.uamo.ynotes.ui.theme.NoteColors
 
+data class EditorTextSnapshot(
+    val title: String,
+    val bodyValue: TextFieldValue
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
@@ -246,8 +251,124 @@ fun EditorScreen(
         }
     }
 
+    // ──────────────────────────────────────────────
+    // IN-MEMORY UNDO / REDO SESSION STATE
+    // ──────────────────────────────────────────────
+    val undoStack = remember { mutableStateListOf<EditorTextSnapshot>() }
+    val redoStack = remember { mutableStateListOf<EditorTextSnapshot>() }
+    var pendingSnapshot by remember { mutableStateOf<EditorTextSnapshot?>(null) }
+    var lastEditTimestamp by remember { mutableLongStateOf(0L) }
+    var isUndoRedoActive by remember { mutableStateOf(false) }
+
+    fun commitPreEditSnapshot() {
+        if (isUndoRedoActive) return
+        pendingSnapshot?.let {
+            if (undoStack.isEmpty() || undoStack.last() != it) {
+                undoStack.add(it)
+                if (undoStack.size > 50) undoStack.removeAt(0)
+            }
+        }
+        val current = EditorTextSnapshot(titleText, bodyTextFieldValue)
+        if (undoStack.isEmpty() || undoStack.last() != current) {
+            undoStack.add(current)
+            if (undoStack.size > 50) undoStack.removeAt(0)
+        }
+        pendingSnapshot = null
+        redoStack.clear()
+    }
+
+    fun onBodyChange(newValue: TextFieldValue) {
+        if (isUndoRedoActive) {
+            bodyTextFieldValue = newValue
+            return
+        }
+        if (newValue.text != bodyTextFieldValue.text) {
+            val now = System.currentTimeMillis()
+            if (pendingSnapshot == null) {
+                pendingSnapshot = EditorTextSnapshot(titleText, bodyTextFieldValue)
+            }
+            if (now - lastEditTimestamp > 800L || newValue.text.endsWith(" ") || newValue.text.endsWith("\n") || Math.abs(newValue.text.length - bodyTextFieldValue.text.length) > 1) {
+                pendingSnapshot?.let {
+                    if (undoStack.isEmpty() || undoStack.last() != it) {
+                        undoStack.add(it)
+                        if (undoStack.size > 50) undoStack.removeAt(0)
+                    }
+                }
+                pendingSnapshot = EditorTextSnapshot(titleText, newValue)
+                redoStack.clear()
+            }
+            lastEditTimestamp = now
+            bodyTextFieldValue = newValue
+            scheduleSave()
+        } else {
+            bodyTextFieldValue = newValue
+        }
+    }
+
+    fun onTitleChange(newTitle: String) {
+        if (isUndoRedoActive) {
+            titleText = newTitle
+            return
+        }
+        if (newTitle != titleText) {
+            val now = System.currentTimeMillis()
+            if (pendingSnapshot == null) {
+                pendingSnapshot = EditorTextSnapshot(titleText, bodyTextFieldValue)
+            }
+            if (now - lastEditTimestamp > 800L || newTitle.endsWith(" ")) {
+                pendingSnapshot?.let {
+                    if (undoStack.isEmpty() || undoStack.last() != it) {
+                        undoStack.add(it)
+                        if (undoStack.size > 50) undoStack.removeAt(0)
+                    }
+                }
+                pendingSnapshot = EditorTextSnapshot(newTitle, bodyTextFieldValue)
+                redoStack.clear()
+            }
+            lastEditTimestamp = now
+            titleText = newTitle
+            scheduleSave()
+        }
+    }
+
+    val canUndo = undoStack.isNotEmpty() || (pendingSnapshot != null && (pendingSnapshot?.title != titleText || pendingSnapshot?.bodyValue?.text != bodyTextFieldValue.text))
+    val canRedo = redoStack.isNotEmpty()
+
+    fun performUndo() {
+        if (pendingSnapshot != null && (titleText != pendingSnapshot?.title || bodyTextFieldValue.text != pendingSnapshot?.bodyValue?.text)) {
+            if (undoStack.isEmpty() || undoStack.last() != pendingSnapshot) {
+                undoStack.add(pendingSnapshot!!)
+            }
+            pendingSnapshot = null
+        }
+        if (undoStack.isNotEmpty()) {
+            isUndoRedoActive = true
+            val current = EditorTextSnapshot(titleText, bodyTextFieldValue)
+            redoStack.add(current)
+            val previous = undoStack.removeAt(undoStack.lastIndex)
+            titleText = previous.title
+            bodyTextFieldValue = previous.bodyValue
+            scheduleSave()
+            isUndoRedoActive = false
+        }
+    }
+
+    fun performRedo() {
+        if (redoStack.isNotEmpty()) {
+            isUndoRedoActive = true
+            val current = EditorTextSnapshot(titleText, bodyTextFieldValue)
+            undoStack.add(current)
+            val next = redoStack.removeAt(redoStack.lastIndex)
+            titleText = next.title
+            bodyTextFieldValue = next.bodyValue
+            scheduleSave()
+            isUndoRedoActive = false
+        }
+    }
+
     fun wrapOrInsert(prefix: String, suffix: String) {
         if (isDeleted) return
+        commitPreEditSnapshot()
         val text = bodyTextFieldValue.text
         val selection = bodyTextFieldValue.selection
         val start = minOf(selection.start, selection.end).coerceIn(0, text.length)
@@ -266,6 +387,7 @@ fun EditorScreen(
 
     fun insertAtLineStart(prefix: String) {
         if (isDeleted) return
+        commitPreEditSnapshot()
         val text = bodyTextFieldValue.text
         val selection = bodyTextFieldValue.selection
         val cursor = selection.start.coerceIn(0, text.length)
@@ -346,22 +468,6 @@ fun EditorScreen(
                         }
                     },
                     actions = {
-                        // Markdown syntax visibility toggle (default: hidden)
-                        IconButton(onClick = { hideMarkdownSyntax = !hideMarkdownSyntax }) {
-                            Icon(
-                                imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (hideMarkdownSyntax) "Sintaxis Markdown oculta (Tocar para mostrar)" else "Sintaxis Markdown visible (Tocar para ocultar)",
-                                tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Focus Mode toggle
-                        IconButton(onClick = { isFocusMode = true }) {
-                            Icon(
-                                Icons.Default.Fullscreen,
-                                contentDescription = "Modo Enfoque",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                         // Pin button
                         IconButton(onClick = {
                             isPinned = !isPinned
@@ -518,10 +624,7 @@ fun EditorScreen(
                         }
                         BasicTextField(
                             value = titleText,
-                            onValueChange = {
-                                titleText = it
-                                scheduleSave()
-                            },
+                            onValueChange = { onTitleChange(it) },
                             textStyle = TextStyle(
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
@@ -550,10 +653,7 @@ fun EditorScreen(
                         }
                         BasicTextField(
                             value = bodyTextFieldValue,
-                            onValueChange = {
-                                bodyTextFieldValue = it
-                                scheduleSave()
-                            },
+                            onValueChange = { onBodyChange(it) },
                             textStyle = TextStyle(
                                 fontSize = 16.sp,
                                 color = onBackgroundColor,
@@ -583,6 +683,86 @@ fun EditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Undo ("Atrás") button - session only
+                        AnimatedVisibility(
+                            visible = canUndo,
+                            enter = fadeIn() + expandHorizontally(),
+                            exit = fadeOut() + shrinkHorizontally()
+                        ) {
+                            Surface(
+                                onClick = { performUndo() },
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Undo,
+                                        contentDescription = "Deshacer (Volver atrás)",
+                                        modifier = Modifier.size(15.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Atrás",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Redo ("Alante") button - session only
+                        AnimatedVisibility(
+                            visible = canRedo,
+                            enter = fadeIn() + expandHorizontally(),
+                            exit = fadeOut() + shrinkHorizontally()
+                        ) {
+                            Surface(
+                                onClick = { performRedo() },
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Redo,
+                                        contentDescription = "Rehacer (Volver alante)",
+                                        modifier = Modifier.size(15.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Alante",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (canUndo || canRedo) {
+                            VerticalDivider(
+                                modifier = Modifier
+                                    .height(20.dp)
+                                    .padding(horizontal = 2.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        }
                         // Quick Toggle Button for syntax
                         Surface(
                             onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
@@ -869,6 +1049,22 @@ fun EditorScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Column {
+                        // Focus Mode / Fullscreen
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Modo Enfoque (Pantalla completa)") },
+                            supportingContent = { Text("Oculta barras y elementos para escribir sin distracciones") },
+                            leadingContent = {
+                                Icon(Icons.Default.Fullscreen, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            modifier = Modifier.clickable {
+                                showPropertiesSheet = false
+                                isFocusMode = true
+                            }
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
                         // Attach Media
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
