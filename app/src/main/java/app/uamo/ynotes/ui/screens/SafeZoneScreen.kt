@@ -577,10 +577,11 @@ fun SafeZoneScreen(
                                         )
                                         if (note.body.isNotEmpty() && !note.isBodyHidden) {
                                             Spacer(modifier = Modifier.height(4.dp))
+                                            val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant
                                             Text(
-                                                text = note.body,
+                                                text = app.uamo.ynotes.utils.parseMarkdown(note.body, bodyColor),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                color = bodyColor,
                                                 maxLines = 2,
                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )

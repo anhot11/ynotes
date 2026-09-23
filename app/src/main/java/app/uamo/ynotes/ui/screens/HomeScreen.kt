@@ -75,6 +75,7 @@ fun HomeScreen(
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
+    var showFilterPills by remember { mutableStateOf(false) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
 
@@ -415,6 +416,19 @@ fun HomeScreen(
                         }
                     }
 
+                    // Toggle filter pills button
+                    IconButton(
+                        onClick = { showFilterPills = !showFilterPills },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = if (showFilterPills) "Ocultar filtros" else "Mostrar filtros",
+                            tint = if (showFilterPills || selectedFilter != HomeFilter.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     // Sort menu button
                     Box {
                         IconButton(
@@ -467,54 +481,60 @@ fun HomeScreen(
                 }
             }
 
-            // 🏷️ INTERACTIVE FILTER PILLS ROW
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 🏷️ INTERACTIVE FILTER PILLS ROW (Collapsible to save vertical space)
+            AnimatedVisibility(
+                visible = showFilterPills || selectedFilter != HomeFilter.ALL,
+                enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
             ) {
-                items(HomeFilter.entries) { filter ->
-                    val isSelected = selectedFilter == filter
-                    val count = when (filter) {
-                        HomeFilter.ALL -> notes.size
-                        HomeFilter.PINNED -> notes.count { it.isPinned }
-                        HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
-                        HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
-                    }
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(HomeFilter.entries) { filter ->
+                        val isSelected = selectedFilter == filter
+                        val count = when (filter) {
+                            HomeFilter.ALL -> notes.size
+                            HomeFilter.PINNED -> notes.count { it.isPinned }
+                            HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
+                            HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
+                        }
 
-                    Surface(
-                        onClick = { selectedFilter = filter },
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${filter.icon} ${filter.label}",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        Surface(
+                            onClick = { selectedFilter = filter },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "$count",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                    text = "${filter.icon} ${filter.label}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        text = "$count",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                    )
+                                }
                             }
                         }
                     }

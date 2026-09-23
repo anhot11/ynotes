@@ -35,8 +35,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
@@ -67,7 +71,9 @@ fun EditorScreen(
     val stableNoteId = remember { editingNote?.id ?: UUID.randomUUID().toString() }
 
     var titleText by remember { mutableStateOf(editingNote?.title ?: "") }
-    var bodyText by remember { mutableStateOf(editingNote?.body ?: "") }
+    var bodyTextFieldValue by remember { mutableStateOf(TextFieldValue(editingNote?.body ?: "")) }
+    val bodyText = bodyTextFieldValue.text
+    var hideMarkdownSyntax by remember { mutableStateOf(true) }
     var noteColor by remember { mutableStateOf(editingNote?.color ?: 0L) }
     var isPinned by remember { mutableStateOf(editingNote?.isPinned ?: false) }
     var bookId by remember { mutableStateOf(editingNote?.bookId) }
@@ -239,6 +245,35 @@ fun EditorScreen(
         }
     }
 
+    fun wrapOrInsert(prefix: String, suffix: String) {
+        if (isDeleted) return
+        val text = bodyTextFieldValue.text
+        val selection = bodyTextFieldValue.selection
+        val start = minOf(selection.start, selection.end).coerceIn(0, text.length)
+        val end = maxOf(selection.start, selection.end).coerceIn(0, text.length)
+
+        if (start != end) {
+            val selected = text.substring(start, end)
+            val newText = text.substring(0, start) + prefix + selected + suffix + text.substring(end)
+            bodyTextFieldValue = TextFieldValue(newText, TextRange(start + prefix.length, end + prefix.length))
+        } else {
+            val newText = text.substring(0, start) + prefix + suffix + text.substring(start)
+            bodyTextFieldValue = TextFieldValue(newText, TextRange(start + prefix.length))
+        }
+        scheduleSave()
+    }
+
+    fun insertAtLineStart(prefix: String) {
+        if (isDeleted) return
+        val text = bodyTextFieldValue.text
+        val selection = bodyTextFieldValue.selection
+        val cursor = selection.start.coerceIn(0, text.length)
+        val lineStart = text.lastIndexOf('\n', (cursor - 1).coerceAtLeast(0)).let { if (it == -1) 0 else it + 1 }
+        val newText = text.substring(0, lineStart) + prefix + text.substring(lineStart)
+        bodyTextFieldValue = TextFieldValue(newText, TextRange(cursor + prefix.length))
+        scheduleSave()
+    }
+
     BackHandler {
         if (isFocusMode) {
             isFocusMode = false
@@ -310,6 +345,14 @@ fun EditorScreen(
                         }
                     },
                     actions = {
+                        // Markdown syntax visibility toggle (default: hidden)
+                        IconButton(onClick = { hideMarkdownSyntax = !hideMarkdownSyntax }) {
+                            Icon(
+                                imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (hideMarkdownSyntax) "Sintaxis Markdown oculta (Tocar para mostrar)" else "Sintaxis Markdown visible (Tocar para ocultar)",
+                                tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         // Focus Mode toggle
                         IconButton(onClick = { isFocusMode = true }) {
                             Icon(
@@ -469,13 +512,13 @@ fun EditorScreen(
                             )
                         }
                         val onBackgroundColor = MaterialTheme.colorScheme.onBackground
-                        val visualTransformation = remember(onBackgroundColor) {
-                            app.uamo.ynotes.utils.MarkdownVisualTransformation(onBackgroundColor)
+                        val visualTransformation = remember(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax) {
+                            app.uamo.ynotes.utils.MarkdownLiveVisualTransformation(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax)
                         }
                         BasicTextField(
-                            value = bodyText,
+                            value = bodyTextFieldValue,
                             onValueChange = {
-                                bodyText = it
+                                bodyTextFieldValue = it
                                 scheduleSave()
                             },
                             textStyle = TextStyle(
@@ -504,40 +547,108 @@ fun EditorScreen(
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        MarkdownToolbarChip(label = "B", title = "Negrita") {
-                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " **texto**" else "**texto**"
-                            scheduleSave()
+                        // Quick Toggle Button for syntax
+                        Surface(
+                            onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (hideMarkdownSyntax) "Oculto" else "Visible",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
-                        MarkdownToolbarChip(label = "I", title = "Cursiva") {
-                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " *texto*" else "*texto*"
-                            scheduleSave()
+
+                        // Formatted markdown example chips
+                        MarkdownToolbarChip(onClick = { wrapOrInsert("**", "**") }) {
+                            Text(
+                                text = "Negrita",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
-                        MarkdownToolbarChip(label = "H1", title = "Título 1") {
-                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "# " else "\n# "
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { wrapOrInsert("*", "*") }) {
+                            Text(
+                                text = "Cursiva",
+                                fontStyle = FontStyle.Italic,
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
-                        MarkdownToolbarChip(label = "H2", title = "Título 2") {
-                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "## " else "\n## "
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { insertAtLineStart("# ") }) {
+                            Text(
+                                text = "H1 Título",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
                         }
-                        MarkdownToolbarChip(label = "•", title = "Lista con viñetas") {
-                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "- " else "\n- "
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { insertAtLineStart("## ") }) {
+                            Text(
+                                text = "H2 Subtítulo",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
                         }
-                        MarkdownToolbarChip(label = "☑", title = "Casilla de verificación") {
-                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "- [ ] " else "\n- [ ] "
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { insertAtLineStart("- ") }) {
+                            Text(
+                                text = "• Lista",
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
-                        MarkdownToolbarChip(label = "\"", title = "Cita en bloque") {
-                            bodyText = bodyText + if (bodyText.isEmpty() || bodyText.endsWith("\n")) "> " else "\n> "
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { insertAtLineStart("- [ ] ") }) {
+                            Text(
+                                text = "☑ Tarea",
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
-                        MarkdownToolbarChip(label = "<>", title = "Código") {
-                            bodyText = bodyText + if (bodyText.isNotEmpty() && !bodyText.endsWith(" ") && !bodyText.endsWith("\n")) " `código`" else "`código`"
-                            scheduleSave()
+
+                        MarkdownToolbarChip(onClick = { insertAtLineStart("> ") }) {
+                            Text(
+                                text = "❝ Cita",
+                                fontStyle = FontStyle.Italic,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+
+                        MarkdownToolbarChip(onClick = { wrapOrInsert("`", "`") }) {
+                            Text(
+                                text = "Código",
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+
+                        MarkdownToolbarChip(onClick = { wrapOrInsert("~~", "~~") }) {
+                            Text(
+                                text = "Tachado",
+                                textDecoration = TextDecoration.LineThrough,
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
                     }
                 }
@@ -871,9 +982,8 @@ fun EditorScreen(
 
 @Composable
 private fun MarkdownToolbarChip(
-    label: String,
-    title: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
 ) {
     Surface(
         onClick = onClick,
@@ -883,15 +993,11 @@ private fun MarkdownToolbarChip(
     ) {
         Box(
             modifier = Modifier
-                .defaultMinSize(minWidth = 36.dp, minHeight = 32.dp)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .defaultMinSize(minHeight = 32.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            content()
         }
     }
 }
