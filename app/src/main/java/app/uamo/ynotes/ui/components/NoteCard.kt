@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.ui.theme.*
 import app.uamo.ynotes.utils.MediaManager
+import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.utils.parseMarkdown
 import app.uamo.ynotes.utils.sharedElementTransition
 import kotlinx.coroutines.Dispatchers
@@ -132,8 +133,14 @@ fun NoteCard(
                         tryAwaitRelease()
                         isPressed = false
                     },
-                    onTap = { onClick(note) },
-                    onLongPress = { onLongPress?.invoke(note) }
+                    onTap = {
+                        SoundManager.playTap()
+                        onClick(note)
+                    },
+                    onLongPress = {
+                        SoundManager.playTap()
+                        onLongPress?.invoke(note)
+                    }
                 )
             }
     ) {

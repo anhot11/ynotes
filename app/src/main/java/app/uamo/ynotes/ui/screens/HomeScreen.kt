@@ -40,6 +40,7 @@ import app.uamo.ynotes.ui.components.NoteCard
 import app.uamo.ynotes.ui.theme.AppThemeType
 import app.uamo.ynotes.ui.theme.AuroraPrimary
 import app.uamo.ynotes.ui.theme.LocalAppTheme
+import app.uamo.ynotes.utils.SoundManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -149,7 +150,10 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { selectedNoteIds = emptySet() }) {
+                            IconButton(onClick = {
+                                SoundManager.playTap()
+                                selectedNoteIds = emptySet()
+                            }) {
                                 Icon(Icons.Default.Close, contentDescription = "Cancelar selección")
                             }
                             Spacer(modifier = Modifier.width(4.dp))
@@ -163,6 +167,7 @@ fun HomeScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TextButton(
                                 onClick = {
+                                    SoundManager.playTap()
                                     selectedNoteIds = if (selectedNoteIds.size == filteredByChip.size) {
                                         emptySet()
                                     } else {
@@ -222,7 +227,10 @@ fun HomeScreen(
                                     tryAwaitRelease()
                                     isFabPressed = false
                                 },
-                                onTap = { onAddNote() },
+                                onTap = {
+                                    SoundManager.playTap()
+                                    onAddNote()
+                                },
                                 onLongPress = {
                                     if (safeZoneTriggerMode == 3) {
                                         if (isBiometricEnabled) onRequestSafeZoneBiometric()

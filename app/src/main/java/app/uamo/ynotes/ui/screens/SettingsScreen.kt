@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.appwidget.updateAll
 import app.uamo.ynotes.ui.components.CustomIcons
+import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.widget.YNotesWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,6 +63,7 @@ fun SettingsScreen(
     val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
     var widgetShowSafeZone by remember { mutableStateOf(sharedPrefs.getBoolean("widget_show_safe_zone", false)) }
+    val isSoundEnabled by SoundManager.isSoundEnabled.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
     val biometricManager = remember { BiometricManager.from(context) }
@@ -282,6 +284,27 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 🔊 CATEGORY: SONIDO & EXPERIENCIA
+                SettingsCategorySection(
+                    title = "Sonido & Sensaciones",
+                    icon = Icons.Default.VolumeUp
+                ) {
+                    Column {
+                        SettingSwitchItem(
+                            title = "Sonidos de la app",
+                            subtitle = if (isSoundEnabled) "Feedback sonoro sutil al tocar notas, borrar o entrar a la zona segura" else "Silenciado (sin efectos de sonido)",
+                            icon = if (isSoundEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                            checked = isSoundEnabled,
+                            onCheckedChange = { enabled ->
+                                SoundManager.setSoundEnabled(context, enabled)
+                                if (enabled) {
+                                    SoundManager.playTap()
+                                }
+                            }
+                        )
                     }
                 }
 

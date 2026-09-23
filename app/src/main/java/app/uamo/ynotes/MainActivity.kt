@@ -19,11 +19,13 @@ import app.uamo.ynotes.ui.AppNavigation
 import app.uamo.ynotes.ui.NotesViewModel
 import app.uamo.ynotes.ui.theme.YNotesTheme
 import app.uamo.ynotes.ui.theme.AppThemeType
+import app.uamo.ynotes.utils.SoundManager
 
 class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SoundManager.init(applicationContext)
         setContent {
             val context = LocalContext.current
             val sharedPref = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
@@ -142,5 +144,10 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SoundManager.release()
     }
 }

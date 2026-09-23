@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import app.uamo.ynotes.utils.CryptoManager
 import app.uamo.ynotes.utils.MediaManager
+import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.widget.YNotesWidgetReceiver
 import java.util.UUID
 
@@ -177,6 +178,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private var syncJob: kotlinx.coroutines.Job? = null
 
     fun unlockSafeZone() {
+        if (!_isSafeZoneUnlocked.value) {
+            SoundManager.playUnlock()
+        }
         _isSafeZoneUnlocked.value = true
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
@@ -304,6 +308,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteNote(id: String) {
+        SoundManager.playDelete()
         viewModelScope.launch(Dispatchers.IO) {
             noteDao.moveToTrash(id)
             notifyWidgetUpdate()
@@ -311,6 +316,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteNotes(ids: List<String>) {
+        if (ids.isNotEmpty()) {
+            SoundManager.playDelete()
+        }
         viewModelScope.launch(Dispatchers.IO) {
             ids.forEach { noteDao.moveToTrash(it) }
             notifyWidgetUpdate()
@@ -325,6 +333,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteNotePermanently(id: String) {
+        SoundManager.playDelete()
         viewModelScope.launch(Dispatchers.IO) {
             val note = deletedNotes.value.find { it.id == id }
             if (note != null) {
@@ -336,6 +345,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun emptyTrash() {
+        if (deletedNotes.value.isNotEmpty()) {
+            SoundManager.playDelete()
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val trashNotes = deletedNotes.value
             trashNotes.forEach { note ->
