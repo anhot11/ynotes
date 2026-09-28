@@ -396,6 +396,23 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun toggleWidgetSpecial(noteId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val note = noteDao.getNoteById(noteId) ?: return@launch
+            noteDao.updateWidgetSpecial(noteId, !note.isWidgetSpecial)
+            notifyWidgetUpdate()
+        }
+    }
+
+    fun setNotesWidgetSpecial(noteIds: List<String>, isSpecial: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            noteIds.forEach { id ->
+                noteDao.updateWidgetSpecial(id, isSpecial)
+            }
+            notifyWidgetUpdate()
+        }
+    }
+
     fun saveBook(id: String?, name: String, color: Long, iconName: String, isSecret: Boolean = false) {
         if (name.isBlank()) return
         val bookId = id ?: UUID.randomUUID().toString()

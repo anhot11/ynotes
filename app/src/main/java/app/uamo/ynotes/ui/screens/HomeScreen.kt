@@ -18,8 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,12 +75,21 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onBooksClick: () -> Unit,
     onTrashClick: () -> Unit,
-    onDeleteNotes: ((List<String>) -> Unit)? = null
+    onDeleteNotes: ((List<String>) -> Unit)? = null,
+    onRestoreNote: ((String) -> Unit)? = null,
+    onToggleWidgetSpecial: ((String) -> Unit)? = null,
+    onSetNotesWidgetSpecial: ((List<String>, Boolean) -> Unit)? = null
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val gridState = rememberLazyStaggeredGridState()
+    val isFabExpanded by remember { derivedStateOf { gridState.firstVisibleItemIndex == 0 } }
+    var longPressedNote by remember { mutableStateOf<NoteEntity?>(null) }
+
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
     var selectedBookFilterId by remember { mutableStateOf<String?>(null) }
-    var showFilterPills by remember { mutableStateOf(false) }
+    var showFilterPills by remember { mutableStateOf(true) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
 
@@ -128,6 +139,7 @@ fun HomeScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             // Contextual bottom action bar when notes are selected
             AnimatedVisibility(
@@ -178,11 +190,43 @@ fun HomeScreen(
                                 Text(if (selectedNoteIds.size == filteredByChip.size) "Deseleccionar" else "Todas")
                             }
 
+                            if (onSetNotesWidgetSpecial != null) {
+                                val allInWidget = selectedNoteIds.all { id -> notes.find { it.id == id }?.isWidgetSpecial == true }
+                                IconButton(
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        onSetNotesWidgetSpecial(selectedNoteIds.toList(), !allInWidget)
+                                        val count = selectedNoteIds.size
+                                        val msg = if (allInWidget) "$count quitadas del widget" else "$count añadidas al widget"
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(msg)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (allInWidget) Icons.Default.Widgets else Icons.Outlined.Widgets,
+                                        contentDescription = "Fijar en Widget",
+                                        tint = if (allInWidget) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
                             if (onDeleteNotes != null) {
                                 IconButton(
                                     onClick = {
-                                        onDeleteNotes(selectedNoteIds.toList())
+                                        val idsToDelete = selectedNoteIds.toList()
+                                        onDeleteNotes(idsToDelete)
                                         selectedNoteIds = emptySet()
+                                        coroutineScope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "${idsToDelete.size} nota${if (idsToDelete.size > 1) "s" else ""} a la papelera",
+                                                actionLabel = "Deshacer",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                idsToDelete.forEach { id -> onRestoreNote?.invoke(id) }
+                                            }
+                                        }
                                     }
                                 ) {
                                     Icon(
@@ -203,56 +247,18 @@ fun HomeScreen(
                 enter = scaleIn() + fadeIn(),
                 exit = scaleOut() + fadeOut()
             ) {
-                var isFabPressed by remember { mutableStateOf(false) }
-                val fabScale by animateFloatAsState(
-                    targetValue = if (isFabPressed) 0.94f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
-                    label = "fabScale"
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        SoundManager.playTap()
+                        onAddNote()
+                    },
+                    expanded = isFabExpanded,
+                    icon = { Icon(Icons.Default.Edit, "Añadir Nota", modifier = Modifier.size(20.dp)) },
+                    text = { Text("Nueva nota", fontWeight = FontWeight.Bold) },
+                    containerColor = AuroraPrimary,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(20.dp)
                 )
-
-                Box(
-                    modifier = Modifier
-                        .padding(end = 4.dp, bottom = 4.dp)
-                        .scale(fabScale)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(AuroraPrimary)
-                        .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isFabPressed = true
-                                    tryAwaitRelease()
-                                    isFabPressed = false
-                                },
-                                onTap = {
-                                    SoundManager.playTap()
-                                    onAddNote()
-                                },
-                                onLongPress = {
-                                    if (safeZoneTriggerMode == 3) {
-                                        if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                        else onRequestSafeZone()
-                                    }
-                                }
-                            )
-                        }
-                        .padding(horizontal = 22.dp, vertical = 15.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, "Añadir Nota", tint = Color.White, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            "Nueva nota",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
         }
     ) { innerPadding ->
@@ -684,6 +690,7 @@ fun HomeScreen(
             } else {
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(2),
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp,
@@ -733,7 +740,11 @@ fun HomeScreen(
                                     }
                                 },
                                 onLongPress = {
-                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        longPressedNote = note
+                                    }
                                 },
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
@@ -783,7 +794,11 @@ fun HomeScreen(
                                     }
                                 },
                                 onLongPress = {
-                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        longPressedNote = note
+                                    }
                                 },
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
@@ -791,6 +806,120 @@ fun HomeScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (longPressedNote != null) {
+        val note = longPressedNote!!
+        ModalBottomSheet(
+            onDismissRequest = { longPressedNote = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = note.title.ifEmpty { "Nota sin título" },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Action: Añadir/Quitar de Widget
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            SoundManager.playTap()
+                            onToggleWidgetSpecial?.invoke(note.id)
+                            val msg = if (note.isWidgetSpecial) "Quitada del widget" else "Fijada en widget de pantalla"
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                            longPressedNote = null
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (note.isWidgetSpecial) Icons.Default.Widgets else Icons.Outlined.Widgets,
+                        contentDescription = null,
+                        tint = if (note.isWidgetSpecial) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = if (note.isWidgetSpecial) "Quitar del widget" else "Fijar en widget de pantalla",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                // Action: Seleccionar varias notas
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            SoundManager.playTap()
+                            selectedNoteIds = setOf(note.id)
+                            longPressedNote = null
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Checklist,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Seleccionar varias notas", style = MaterialTheme.typography.bodyLarge)
+                }
+
+                // Action: Mover a papelera con Deshacer
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            SoundManager.playTap()
+                            onDeleteNotes?.invoke(listOf(note.id))
+                            longPressedNote = null
+                            coroutineScope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = "Nota movida a la papelera",
+                                    actionLabel = "Deshacer",
+                                    duration = SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    onRestoreNote?.invoke(note.id)
+                                }
+                            }
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        "Mover a papelera",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }

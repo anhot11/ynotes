@@ -23,8 +23,12 @@ import app.uamo.ynotes.utils.SoundManager
 
 class MainActivity : FragmentActivity() {
 
+    private var pendingNavigateRoute by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.activity.enableEdgeToEdge()
+        pendingNavigateRoute = intent?.getStringExtra("navigate_route")
         SoundManager.init(applicationContext)
         setContent {
             val context = LocalContext.current
@@ -138,11 +142,21 @@ class MainActivity : FragmentActivity() {
                             },
                             onWelcomeCompleted = {
                                 sharedPref.edit().putBoolean("HAS_SEEN_WELCOME", true).apply()
-                            }
+                            },
+                            pendingDeepLinkRoute = pendingNavigateRoute,
+                            onDeepLinkHandled = { pendingNavigateRoute = null }
                         )
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent?.getStringExtra("navigate_route")?.let { route ->
+            pendingNavigateRoute = route
         }
     }
 

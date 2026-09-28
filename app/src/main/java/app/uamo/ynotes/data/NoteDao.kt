@@ -31,6 +31,9 @@ interface NoteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: NoteEntity)
 
+    @Query("UPDATE notes SET isWidgetSpecial = :isSpecial, updatedAt = :timestamp WHERE id = :id")
+    suspend fun updateWidgetSpecial(id: String, isSpecial: Boolean, timestamp: Long = System.currentTimeMillis())
+
     @Query("UPDATE notes SET isDeleted = 1, updatedAt = :timestamp WHERE id = :id")
     suspend fun moveToTrash(id: String, timestamp: Long = System.currentTimeMillis())
     

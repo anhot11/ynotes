@@ -80,6 +80,7 @@ fun SafeZoneScreen(
     val context = LocalContext.current
     
     var showSortMenu by remember { mutableStateOf(false) }
+    var isSecurityBannerExpanded by remember { mutableStateOf(false) }
     
     // All system apps — only loaded when user opens the picker dialog
     var allInstalledApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
@@ -238,43 +239,61 @@ fun SafeZoneScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Cyber Vault Security Banner
+            // Cyber Vault Security Banner - Compact & Collapsible
             Surface(
+                onClick = { isSecurityBannerExpanded = !isSecurityBannerExpanded },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f))
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.07f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                        modifier = Modifier.size(36.dp)
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Security,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(4.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Bóveda Segura AES-256-GCM",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         Icon(
-                            Icons.Outlined.Security,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(8.dp)
+                            imageVector = if (isSecurityBannerExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isSecurityBannerExpanded) "Contraer" else "Ver detalles",
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Bóveda Segura AES-256-GCM",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            "Cifrado simétrico de alta seguridad y protección contra volcado",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isSecurityBannerExpanded,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.padding(top = 6.dp)) {
+                            Text(
+                                "Cifrado autenticado por hardware (AndroidKeyStore), protección activa contra capturas y purga de memoria.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -762,11 +781,11 @@ private fun AppIconItem(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = app.name,
-                style = MaterialTheme.typography.bodySmall,
+                text = if (app.name.isNotBlank()) app.name else app.packageName.substringAfterLast('.'),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                modifier = Modifier.width((iconSize + 16).dp),
+                modifier = Modifier.width((iconSize + 28).dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
@@ -851,7 +870,7 @@ private fun AddAppButton(iconSize: Int, onClick: () -> Unit) {
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Añadir",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
             color = MaterialTheme.colorScheme.onBackground
         )
     }

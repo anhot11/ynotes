@@ -31,11 +31,20 @@ fun AppNavigation(
     onBiometricToggle: (Boolean) -> Unit,
     onAppHidingToggle: (Int) -> Unit,
     onThemeChanged: (Int) -> Unit,
-    onWelcomeCompleted: () -> Unit
+    onWelcomeCompleted: () -> Unit,
+    pendingDeepLinkRoute: String? = null,
+    onDeepLinkHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val activity = context as? FragmentActivity
+    
+    LaunchedEffect(pendingDeepLinkRoute) {
+        if (!pendingDeepLinkRoute.isNullOrBlank()) {
+            navController.navigate(pendingDeepLinkRoute)
+            onDeepLinkHandled()
+        }
+    }
     
     val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
     val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
@@ -188,6 +197,15 @@ fun AppNavigation(
                 },
                 onDeleteNotes = { ids ->
                     viewModel.deleteNotes(ids)
+                },
+                onRestoreNote = { id ->
+                    viewModel.restoreFromTrash(id)
+                },
+                onToggleWidgetSpecial = { id ->
+                    viewModel.toggleWidgetSpecial(id)
+                },
+                onSetNotesWidgetSpecial = { ids, isSpecial ->
+                    viewModel.setNotesWidgetSpecial(ids, isSpecial)
                 }
             )
         }

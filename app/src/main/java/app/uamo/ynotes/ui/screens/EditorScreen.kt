@@ -428,31 +428,44 @@ fun EditorScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onBackground,
                     ),
                     title = {
-                        AnimatedContent(targetState = isSaving, label = "SaveStatus") { saving ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(
+                            targetState = isSaving,
+                            label = "SaveStatus",
+                            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) }
+                        ) { saving ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (saving) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
                                 if (saving) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(10.dp),
+                                        strokeWidth = 1.5.dp,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Guardando...",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 } else {
-                                    Icon(
-                                        Icons.Default.CloudDone,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Guardado",
-                                        style = MaterialTheme.typography.labelMedium,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )
                                 }
@@ -507,6 +520,7 @@ fun EditorScreen(
             modifier = Modifier
                 .padding(if (isFocusMode) PaddingValues(0.dp) else innerPadding)
                 .fillMaxSize()
+                .imePadding()
         ) {
             Column(
                 modifier = Modifier
@@ -666,201 +680,238 @@ fun EditorScreen(
                     }
                 }
 
-                // ⚡ QUICK MARKDOWN FORMATTING TOOLBAR
+                // ⚡ QUICK COMPACT MARKDOWN TOOLBAR
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                    )
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Undo ("Atrás") button - session only
-                        AnimatedVisibility(
-                            visible = canUndo,
-                            enter = fadeIn() + expandHorizontally(),
-                            exit = fadeOut() + shrinkHorizontally()
+                        // Undo ("Atrás") - ALWAYS VISIBLE
+                        IconButton(
+                            onClick = { performUndo() },
+                            enabled = canUndo,
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Surface(
-                                onClick = { performUndo() },
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Undo,
-                                        contentDescription = "Deshacer (Volver atrás)",
-                                        modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Atrás",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        // Redo ("Alante") button - session only
-                        AnimatedVisibility(
-                            visible = canRedo,
-                            enter = fadeIn() + expandHorizontally(),
-                            exit = fadeOut() + shrinkHorizontally()
-                        ) {
-                            Surface(
-                                onClick = { performRedo() },
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Redo,
-                                        contentDescription = "Rehacer (Volver alante)",
-                                        modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Alante",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        if (canUndo || canRedo) {
-                            VerticalDivider(
-                                modifier = Modifier
-                                    .height(20.dp)
-                                    .padding(horizontal = 2.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = "Deshacer",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (canUndo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                             )
                         }
-                        // Quick Toggle Button for syntax
-                        Surface(
-                            onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                            )
+
+                        // Redo ("Alante") - ALWAYS VISIBLE
+                        IconButton(
+                            onClick = { performRedo() },
+                            enabled = canRedo,
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp),
-                                    tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (hideMarkdownSyntax) "Oculto" else "Visible",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Redo,
+                                contentDescription = "Rehacer",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (canRedo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                            )
                         }
 
-                        // Formatted markdown example chips
-                        MarkdownToolbarChip(onClick = { wrapOrInsert("**", "**") }) {
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // ── GRUPO FORMATO DE TEXTO ──
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("**", "**") },
+                            contentDescription = "Negrita"
+                        ) {
                             Text(
-                                text = "Negrita",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.labelMedium
+                                text = "B",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        MarkdownToolbarChip(onClick = { wrapOrInsert("*", "*") }) {
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("*", "*") },
+                            contentDescription = "Cursiva"
+                        ) {
                             Text(
-                                text = "Cursiva",
+                                text = "I",
                                 fontStyle = FontStyle.Italic,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { insertAtLineStart("# ") }) {
-                            Text(
-                                text = "H1 Título",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        MarkdownToolbarChip(onClick = { insertAtLineStart("## ") }) {
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("~~", "~~") },
+                            contentDescription = "Tachado"
+                        ) {
                             Text(
-                                text = "H2 Subtítulo",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { insertAtLineStart("- ") }) {
-                            Text(
-                                text = "• Lista",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { insertAtLineStart("- [ ] ") }) {
-                            Text(
-                                text = "☑ Tarea",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { insertAtLineStart("> ") }) {
-                            Text(
-                                text = "❝ Cita",
-                                fontStyle = FontStyle.Italic,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { wrapOrInsert("`", "`") }) {
-                            Text(
-                                text = "Código",
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        MarkdownToolbarChip(onClick = { wrapOrInsert("~~", "~~") }) {
-                            Text(
-                                text = "Tachado",
+                                text = "S",
                                 textDecoration = TextDecoration.LineThrough,
-                                style = MaterialTheme.typography.labelMedium
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // ── GRUPO TÍTULOS ──
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("# ") },
+                            contentDescription = "Título H1"
+                        ) {
+                            Text(
+                                text = "H1",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("## ") },
+                            contentDescription = "Título H2"
+                        ) {
+                            Text(
+                                text = "H2",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("### ") },
+                            contentDescription = "Título H3"
+                        ) {
+                            Text(
+                                text = "H3",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // ── GRUPO LISTAS Y CITAS ──
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("- ") },
+                            contentDescription = "Lista con viñetas"
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("- [ ] ") },
+                            contentDescription = "Lista de tareas (Checklist)"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Checklist,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("> ") },
+                            contentDescription = "Cita"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FormatQuote,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // ── GRUPO INSERTAR ──
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("`", "`") },
+                            contentDescription = "Código en línea"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Code,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { launchImagePicker() },
+                            contentDescription = "Insertar imagen"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // ── VISTA PREVIA MARKDOWN (SINTAXIS) ──
+                        ToolbarItemButton(
+                            onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
+                            contentDescription = if (hideMarkdownSyntax) "Sintaxis oculta (tocar para mostrar)" else "Sintaxis visible (tocar para ocultar)",
+                            containerColor = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
+                        ) {
+                            Icon(
+                                imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1210,22 +1261,22 @@ fun EditorScreen(
 }
 
 @Composable
-private fun MarkdownToolbarChip(
+private fun ToolbarItemButton(
     onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    containerColor: Color = Color.Transparent,
     content: @Composable () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        enabled = enabled,
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor,
+        modifier = modifier.size(36.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .defaultMinSize(minHeight = 32.dp)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(contentAlignment = Alignment.Center) {
             content()
         }
     }
