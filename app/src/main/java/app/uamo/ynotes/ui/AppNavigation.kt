@@ -40,6 +40,7 @@ fun AppNavigation(
     val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
     val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
     val isBooksEnabled by viewModel.isBooksEnabled.collectAsStateWithLifecycle()
+    val hiddenApps by viewModel.hiddenApps.collectAsStateWithLifecycle()
     
     val homeSearchQuery by viewModel.homeSearchQuery.collectAsStateWithLifecycle()
     val homeSortOrder by viewModel.homeSortOrder.collectAsStateWithLifecycle()
@@ -215,6 +216,9 @@ fun AppNavigation(
                     navController.navigate("settings/safe_zone")
                 },
                 isBooksEnabled = isBooksEnabled,
+                hiddenApps = hiddenApps,
+                onToggleHiddenApp = { pkg, name -> viewModel.toggleHiddenApp(pkg, name) },
+                onRemoveHiddenApp = { pkg -> viewModel.removeHiddenApp(pkg) },
                 onBooksClick = {
                     navController.navigate("books/secret")
                 },

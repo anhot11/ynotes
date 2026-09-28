@@ -41,6 +41,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.uamo.ynotes.data.HiddenAppEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
 import app.uamo.ynotes.data.applySortOrder
@@ -48,9 +49,10 @@ import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
 import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.ui.theme.AppThemeType
-import app.uamo.ynotes.utils.AppCacheManager
 import app.uamo.ynotes.utils.AppInfo
 import app.uamo.ynotes.utils.getInstalledApps
+import app.uamo.ynotes.utils.rememberAppIcon
+import app.uamo.ynotes.utils.SoundManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,6 +67,9 @@ fun SafeZoneScreen(
     onSortOrderChange: (SortOrder) -> Unit,
     isAppHidingEnabled: Int, // 0=disabled, 1=normal(apps tab), 2=reverse(apps main)
     isBooksEnabled: Boolean,
+    hiddenApps: List<HiddenAppEntity> = emptyList(),
+    onToggleHiddenApp: (packageName: String, name: String) -> Unit = { _, _ -> },
+    onRemoveHiddenApp: (packageName: String) -> Unit = {},
     onDeactivateSafeZone: () -> Unit,
     onAddNote: () -> Unit,
     onNoteClick: (NoteEntity) -> Unit,
@@ -73,43 +78,16 @@ fun SafeZoneScreen(
     onTrashClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     
     var showSortMenu by remember { mutableStateOf(false) }
     
-    // Hidden Apps State
-    var hiddenAppPackages by remember { 
-        mutableStateOf(sharedPrefs.getStringSet("HIDDEN_APPS", emptySet())?.toSet() ?: emptySet()) 
-    }
-    // Cached hidden apps — loaded instantly from disk
-    var cachedHiddenApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
-    // All system apps — only loaded when user opens the picker
+    // All system apps — only loaded when user opens the picker dialog
     var allInstalledApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(false) }
     var showAppPicker by remember { mutableStateOf(false) }
+    var pickerSearchQuery by remember { mutableStateOf("") }
     var isAppsListExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
-
-    // Load cached hidden apps & auto-recover missing ones
-    LaunchedEffect(hiddenAppPackages, isAppHidingEnabled) {
-        withContext(Dispatchers.IO) {
-            val currentCached = AppCacheManager.loadHiddenApps(context).toMutableList()
-            val loadedPackages = currentCached.map { it.packageName }.toSet()
-            val missingPackages = hiddenAppPackages - loadedPackages
-
-            if (missingPackages.isNotEmpty()) {
-                val installed = getInstalledApps(context)
-                val missingApps = installed.filter { missingPackages.contains(it.packageName) }
-                currentCached.addAll(missingApps)
-                AppCacheManager.saveHiddenApps(context, currentCached)
-            }
-
-            withContext(Dispatchers.Main) {
-                cachedHiddenApps = currentCached
-            }
-        }
-    }
 
     val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
     val unpinnedNotes = remember(notes) { notes.filter { !it.isPinned } }
@@ -126,61 +104,115 @@ fun SafeZoneScreen(
     }
 
     if (showAppPicker) {
+        val filteredInstalledApps = remember(allInstalledApps, pickerSearchQuery) {
+            if (pickerSearchQuery.isBlank()) allInstalledApps
+            else allInstalledApps.filter { it.name.contains(pickerSearchQuery, ignoreCase = true) }
+        }
+
         AlertDialog(
-            onDismissRequest = { showAppPicker = false },
+            onDismissRequest = {
+                showAppPicker = false
+                pickerSearchQuery = ""
+            },
             title = { Text("Ocultar Aplicaciones") },
             text = {
-                if (isLoadingApps) {
-                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                        items(allInstalledApps, key = { it.packageName }) { app ->
-                            val isSelected = hiddenAppPackages.contains(app.packageName)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        val newSet = if (isSelected) hiddenAppPackages - app.packageName else hiddenAppPackages + app.packageName
-                                        hiddenAppPackages = newSet
-                                        sharedPrefs.edit().putStringSet("HIDDEN_APPS", newSet).apply()
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = pickerSearchQuery,
+                        onValueChange = { pickerSearchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        placeholder = { Text("Buscar aplicación...", style = MaterialTheme.typography.bodyMedium) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+                        },
+                        trailingIcon = {
+                            if (pickerSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { pickerSearchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Limpiar", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
-                                        val updatedCachedApps = if (isSelected) {
-                                            cachedHiddenApps.filter { it.packageName != app.packageName }
-                                        } else {
-                                            (cachedHiddenApps + app).distinctBy { it.packageName }
-                                        }
-                                        cachedHiddenApps = updatedCachedApps
-                                        coroutineScope.launch(Dispatchers.IO) {
-                                            AppCacheManager.saveHiddenApps(context, updatedCachedApps)
-                                        }
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Image(
-                                    bitmap = app.icon,
-                                    contentDescription = app.name,
-                                    modifier = Modifier.size(40.dp)
+                    if (isLoadingApps) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Cargando aplicaciones...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(app.name, modifier = Modifier.weight(1f))
-                                Checkbox(checked = isSelected, onCheckedChange = null)
+                            }
+                        }
+                    } else if (filteredInstalledApps.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(150.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "No se encontraron aplicaciones",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
+                            items(filteredInstalledApps, key = { it.packageName }) { app ->
+                                val isSelected = hiddenApps.any { it.packageName == app.packageName }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            SoundManager.playSelect()
+                                            onToggleHiddenApp(app.packageName, app.name)
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Image(
+                                        bitmap = app.icon,
+                                        contentDescription = app.name,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(app.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = {
+                                            SoundManager.playSelect()
+                                            onToggleHiddenApp(app.packageName, app.name)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAppPicker = false }) {
+                TextButton(onClick = {
+                    showAppPicker = false
+                    pickerSearchQuery = ""
+                }) {
                     Text("Cerrar")
                 }
             }
         )
     }
 
-    val appsToShow = cachedHiddenApps.filter { hiddenAppPackages.contains(it.packageName) }
     val currentTheme = LocalAppTheme.current
 
     Scaffold(
@@ -413,7 +445,7 @@ fun SafeZoneScreen(
             // MODE 1: Normal — apps as collapsible tab on top, notes below
             // ═══════════════════════════════════════
             if (isAppHidingEnabled == 1) {
-                if (hiddenAppPackages.isNotEmpty() || appsToShow.isNotEmpty()) {
+                if (hiddenApps.isNotEmpty()) {
                     // Collapsible apps header
                     Row(
                         modifier = Modifier
@@ -430,7 +462,7 @@ fun SafeZoneScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Aplicaciones Ocultas",
+                            text = "Aplicaciones Ocultas (${hiddenApps.size})",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
@@ -451,8 +483,13 @@ fun SafeZoneScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            items(appsToShow, key = { it.packageName }) { app ->
-                                AppIconItem(app = app, iconSize = 48, context = context)
+                            items(hiddenApps, key = { it.packageName }) { app ->
+                                AppIconItem(
+                                    app = app,
+                                    iconSize = 48,
+                                    context = context,
+                                    onRemove = { onRemoveHiddenApp(app.packageName) }
+                                )
                             }
                             item {
                                 AddAppButton(iconSize = 48, onClick = { showAppPicker = true })
@@ -595,7 +632,7 @@ fun SafeZoneScreen(
                 }
 
                 // Apps as main grid with bigger icons
-                if (appsToShow.isEmpty() && hiddenAppPackages.isEmpty()) {
+                if (hiddenApps.isEmpty()) {
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.Center,
@@ -627,8 +664,13 @@ fun SafeZoneScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(appsToShow, key = { it.packageName }) { app ->
-                            AppIconItem(app = app, iconSize = 60, context = context)
+                        items(hiddenApps, key = { it.packageName }) { app ->
+                            AppIconItem(
+                                app = app,
+                                iconSize = 60,
+                                context = context,
+                                onRemove = { onRemoveHiddenApp(app.packageName) }
+                            )
                         }
                         item {
                             AddAppButton(iconSize = 60, onClick = { showAppPicker = true })
@@ -645,8 +687,16 @@ fun SafeZoneScreen(
 // ──────────────────────────────────────
 
 @Composable
-private fun AppIconItem(app: AppInfo, iconSize: Int, context: android.content.Context) {
+private fun AppIconItem(
+    app: HiddenAppEntity,
+    iconSize: Int,
+    context: android.content.Context,
+    onRemove: () -> Unit
+) {
     var isPressed by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    val iconBitmap = rememberAppIcon(packageName = app.packageName, context = context)
+
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.90f else 1f,
         animationSpec = spring(
@@ -656,48 +706,105 @@ private fun AppIconItem(app: AppInfo, iconSize: Int, context: android.content.Co
         label = "scale"
     )
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = {
-                        val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                        if (launchIntent != null) {
-                            context.startActivity(launchIntent)
-                        }
-                    }
-                )
-            }
-            .padding(4.dp)
-    ) {
-        Image(
-            bitmap = app.icon,
-            contentDescription = app.name,
+    Box {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .size(iconSize.dp)
-                .graphicsLayer {
-                    shadowElevation = 8.dp.toPx()
-                    shape = RoundedCornerShape(if (iconSize > 50) 16.dp else 12.dp)
-                    clip = true
+                .scale(scale)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            tryAwaitRelease()
+                            isPressed = false
+                        },
+                        onTap = {
+                            SoundManager.playSelect()
+                            val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                            if (launchIntent != null) {
+                                context.startActivity(launchIntent)
+                            }
+                        },
+                        onLongPress = {
+                            SoundManager.playSelect()
+                            showMenu = true
+                        }
+                    )
                 }
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = app.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            modifier = Modifier.width((iconSize + 12).dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-        )
+                .padding(4.dp)
+        ) {
+            if (iconBitmap != null) {
+                Image(
+                    bitmap = iconBitmap,
+                    contentDescription = app.name,
+                    modifier = Modifier
+                        .size(iconSize.dp)
+                        .graphicsLayer {
+                            shadowElevation = 8.dp.toPx()
+                            shape = RoundedCornerShape(if (iconSize > 50) 16.dp else 12.dp)
+                            clip = true
+                        }
+                )
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(if (iconSize > 50) 16.dp else 12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.size(iconSize.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = app.name.take(1).uppercase(),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = app.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                modifier = Modifier.width((iconSize + 16).dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Abrir") },
+                leadingIcon = {
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                },
+                onClick = {
+                    showMenu = false
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                    if (launchIntent != null) {
+                        context.startActivity(launchIntent)
+                    }
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Quitar de la bóveda", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.DeleteOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                onClick = {
+                    showMenu = false
+                    onRemove()
+                }
+            )
+        }
     }
 }
 

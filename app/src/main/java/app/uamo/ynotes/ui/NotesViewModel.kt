@@ -1,9 +1,11 @@
 package app.uamo.ynotes.ui
 
 import android.app.Application
+import android.content.pm.PackageManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.uamo.ynotes.data.BookEntity
+import app.uamo.ynotes.data.HiddenAppEntity
 import app.uamo.ynotes.data.NoteDatabase
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.applySortOrder
@@ -19,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import app.uamo.ynotes.utils.AppIconManager
 import app.uamo.ynotes.utils.CryptoManager
 import app.uamo.ynotes.utils.MediaManager
 import app.uamo.ynotes.utils.SoundManager
@@ -28,7 +31,15 @@ import java.util.UUID
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     private val noteDao = NoteDatabase.getDatabase(application).noteDao()
+    private val hiddenAppDao = NoteDatabase.getDatabase(application).hiddenAppDao()
     private val sharedPrefs = application.getSharedPreferences("yNotesPrefs", android.content.Context.MODE_PRIVATE)
+
+    val hiddenApps: StateFlow<List<HiddenAppEntity>> = hiddenAppDao.getAllHiddenApps()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -39,6 +50,33 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
                 noteDao.deleteExpiredNotes()
                 delay(60_000) // check every minute
             }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            // Migrate legacy SharedPreferences HIDDEN_APPS to Room
+            val legacyApps = sharedPrefs.getStringSet("HIDDEN_APPS", null)
+            val currentInDb = hiddenAppDao.getAllHiddenAppsSync()
+            if (currentInDb.isEmpty() && !legacyApps.isNullOrEmpty()) {
+                val pm = application.packageManager
+                val entities = legacyApps.mapIndexed { idx, pkg ->
+                    val name = try {
+                        val info = pm.getApplicationInfo(pkg, 0)
+                        pm.getApplicationLabel(info).toString()
+                    } catch (_: Exception) {
+                        pkg
+                    }
+                    HiddenAppEntity(packageName = pkg, name = name, orderIndex = idx)
+                }
+                hiddenAppDao.insertAll(entities)
+            }
+
+            // Pre-cache icons for all hidden apps to disk / RAM
+            val allApps = hiddenAppDao.getAllHiddenAppsSync()
+            allApps.forEach { app ->
+                AppIconManager.resolveAndCacheIcon(application, app.packageName)
+            }
+
+            // Silently clean up any apps that were uninstalled from the device
+            cleanupUninstalledApps()
         }
     }
 
@@ -379,5 +417,66 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             noteDao.removeBookFromNotes(id)
             noteDao.deleteBook(id)
         }
+    }
+
+    // ──────────────────────────────────────────────
+    // HIDDEN APPS MANAGEMENT
+    // ──────────────────────────────────────────────
+    fun toggleHiddenApp(packageName: String, name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = hiddenAppDao.getAllHiddenAppsSync()
+            val found = existing.find { it.packageName == packageName }
+            if (found != null) {
+                hiddenAppDao.delete(packageName)
+                AppIconManager.removeCachedIcon(getApplication(), packageName)
+            } else {
+                val nextOrder = (existing.maxOfOrNull { it.orderIndex } ?: -1) + 1
+                hiddenAppDao.insertOrUpdate(HiddenAppEntity(packageName = packageName, name = name, orderIndex = nextOrder))
+                AppIconManager.resolveAndCacheIcon(getApplication(), packageName)
+            }
+            val updated = hiddenAppDao.getAllHiddenAppsSync().map { it.packageName }.toSet()
+            sharedPrefs.edit().putStringSet("HIDDEN_APPS", updated).apply()
+        }
+    }
+
+    fun removeHiddenApp(packageName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            hiddenAppDao.delete(packageName)
+            AppIconManager.removeCachedIcon(getApplication(), packageName)
+            val updated = hiddenAppDao.getAllHiddenAppsSync().map { it.packageName }.toSet()
+            sharedPrefs.edit().putStringSet("HIDDEN_APPS", updated).apply()
+        }
+    }
+
+    fun reorderHiddenApps(apps: List<HiddenAppEntity>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val indexed = apps.mapIndexed { index, app -> app.copy(orderIndex = index) }
+            hiddenAppDao.insertAll(indexed)
+        }
+    }
+
+    private suspend fun cleanupUninstalledApps() {
+        try {
+            val pm = getApplication<Application>().packageManager
+            val currentApps = hiddenAppDao.getAllHiddenAppsSync()
+            val uninstalled = currentApps.filter { app ->
+                try {
+                    pm.getPackageInfo(app.packageName, 0)
+                    false
+                } catch (_: PackageManager.NameNotFoundException) {
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            if (uninstalled.isNotEmpty()) {
+                uninstalled.forEach { app ->
+                    hiddenAppDao.delete(app.packageName)
+                    AppIconManager.removeCachedIcon(getApplication(), app.packageName)
+                }
+                val updated = hiddenAppDao.getAllHiddenAppsSync().map { it.packageName }.toSet()
+                sharedPrefs.edit().putStringSet("HIDDEN_APPS", updated).apply()
+            }
+        } catch (_: Exception) {}
     }
 }
