@@ -58,34 +58,51 @@ fun AppNavigation(
     
     val executor = ContextCompat.getMainExecutor(context)
 
+    val navigateToSafeZone = {
+        viewModel.unlockSafeZone()
+        navController.navigate("safe_zone")
+    }
+
     // Full safe zone request (respects biometric setting)
     val onRequestSafeZone: () -> Unit = {
-        if (activity != null) {
+        if (isBiometricEnabled.value && activity != null) {
             val biometricManager = BiometricManager.from(context)
-            if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS) {
-                val biometricPrompt = BiometricPrompt(activity, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            viewModel.unlockSafeZone()
-                            navController.navigate("safe_zone")
-                        }
-                    })
+            val canAuth = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            if (canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
+                try {
+                    val biometricPrompt = BiometricPrompt(activity, executor,
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                super.onAuthenticationSucceeded(result)
+                                navigateToSafeZone()
+                            }
+                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                super.onAuthenticationError(errorCode, errString)
+                                if (errorCode == BiometricPrompt.ERROR_HW_NOT_PRESENT ||
+                                    errorCode == BiometricPrompt.ERROR_HW_UNAVAILABLE ||
+                                    errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS) {
+                                    navigateToSafeZone()
+                                }
+                            }
+                        })
 
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Zona Segura")
-                    .setSubtitle("Confirma tu identidad para acceder")
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                    .build()
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Zona Segura")
+                        .setSubtitle("Confirma tu identidad para acceder")
+                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                        .build()
 
-                biometricPrompt.authenticate(promptInfo)
+                    biometricPrompt.authenticate(promptInfo)
+                } catch (e: Exception) {
+                    navigateToSafeZone()
+                }
             } else {
-                viewModel.unlockSafeZone()
-                navController.navigate("safe_zone")
+                navigateToSafeZone()
             }
         } else {
-            viewModel.unlockSafeZone()
-            navController.navigate("safe_zone")
+            navigateToSafeZone()
         }
     }
 
@@ -93,32 +110,39 @@ fun AppNavigation(
     val onRequestSafeZoneBiometric: () -> Unit = {
         if (activity != null) {
             val biometricManager = BiometricManager.from(context)
-            if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
-                val biometricPrompt = BiometricPrompt(activity, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            viewModel.unlockSafeZone()
-                            navController.navigate("safe_zone")
-                        }
-                    })
+            val canAuthStrong = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            val canAuthCredential = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
 
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Zona Segura")
-                    .setSubtitle("Confirma tu huella para acceder")
-                    .setNegativeButtonText("Cancelar")
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                    .build()
+            if (canAuthStrong == BiometricManager.BIOMETRIC_SUCCESS) {
+                try {
+                    val biometricPrompt = BiometricPrompt(activity, executor,
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                super.onAuthenticationSucceeded(result)
+                                navigateToSafeZone()
+                            }
+                        })
 
-                biometricPrompt.authenticate(promptInfo)
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Zona Segura")
+                        .setSubtitle("Confirma tu huella para acceder")
+                        .setNegativeButtonText("Cancelar")
+                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                        .build()
+
+                    biometricPrompt.authenticate(promptInfo)
+                } catch (e: Exception) {
+                    onRequestSafeZone()
+                }
+            } else if (canAuthCredential == BiometricManager.BIOMETRIC_SUCCESS) {
+                onRequestSafeZone()
             } else {
-                // Fallback if biometric not available
-                viewModel.unlockSafeZone()
-                navController.navigate("safe_zone")
+                navigateToSafeZone()
             }
         } else {
-            viewModel.unlockSafeZone()
-            navController.navigate("safe_zone")
+            navigateToSafeZone()
         }
     }
 

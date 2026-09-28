@@ -89,7 +89,7 @@ fun HomeScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
     var selectedBookFilterId by remember { mutableStateOf<String?>(null) }
-    var showFilterPills by remember { mutableStateOf(true) }
+    var showFilterPills by remember { mutableStateOf(false) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
 
@@ -98,9 +98,10 @@ fun HomeScreen(
     }
 
     LaunchedEffect(searchQuery) {
-        if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery == safeZonePassword) {
+        if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery.trim() == safeZonePassword.trim()) {
             onSearchQueryChange("")
-            onRequestSafeZone()
+            if (isBiometricEnabled) onRequestSafeZoneBiometric()
+            else onRequestSafeZone()
         }
     }
 
@@ -247,18 +248,65 @@ fun HomeScreen(
                 enter = scaleIn() + fadeIn(),
                 exit = scaleOut() + fadeOut()
             ) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        SoundManager.playTap()
-                        onAddNote()
-                    },
-                    expanded = isFabExpanded,
-                    icon = { Icon(Icons.Default.Edit, "Añadir Nota", modifier = Modifier.size(20.dp)) },
-                    text = { Text("Nueva nota", fontWeight = FontWeight.Bold) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    shape = RoundedCornerShape(20.dp)
+                var isFabPressed by remember { mutableStateOf(false) }
+                val fabScale by animateFloatAsState(
+                    targetValue = if (isFabPressed) 0.94f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "fabScale"
                 )
+
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp, bottom = 4.dp)
+                        .scale(fabScale)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AuroraPrimary)
+                        .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isFabPressed = true
+                                    tryAwaitRelease()
+                                    isFabPressed = false
+                                },
+                                onTap = {
+                                    SoundManager.playTap()
+                                    onAddNote()
+                                },
+                                onLongPress = {
+                                    if (safeZoneTriggerMode == 3) {
+                                        SoundManager.playTap()
+                                        if (isBiometricEnabled) onRequestSafeZoneBiometric()
+                                        else onRequestSafeZone()
+                                    }
+                                }
+                            )
+                        }
+                        .padding(horizontal = if (isFabExpanded) 22.dp else 16.dp, vertical = 15.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, "Añadir Nota", tint = Color.White, modifier = Modifier.size(20.dp))
+                        AnimatedVisibility(
+                            visible = isFabExpanded,
+                            enter = expandHorizontally() + fadeIn(),
+                            exit = shrinkHorizontally() + fadeOut()
+                        ) {
+                            Row {
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    "Nueva nota",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     ) { innerPadding ->
@@ -388,25 +436,35 @@ fun HomeScreen(
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Buscar",
-                        tint = MaterialTheme.colorScheme.primary,
+                    Box(
                         modifier = Modifier
-                            .size(22.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
                             .pointerInput(Unit) {
                                 detectTapGestures(
+                                    onTap = {
+                                        SoundManager.playTap()
+                                    },
                                     onLongPress = {
+                                        SoundManager.playTap()
                                         if (safeZoneTriggerMode == 1) {
                                             if (isBiometricEnabled) onRequestSafeZoneBiometric()
                                             else onRequestSafeZone()
                                         }
                                     }
                                 )
-                            }
-                    )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Box(modifier = Modifier.weight(1f)) {
                         if (searchQuery.isEmpty()) {
@@ -431,7 +489,10 @@ fun HomeScreen(
 
                     if (searchQuery.isNotEmpty()) {
                         IconButton(
-                            onClick = { onSearchQueryChange("") },
+                            onClick = {
+                                SoundManager.playTap()
+                                onSearchQueryChange("")
+                            },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
@@ -445,7 +506,10 @@ fun HomeScreen(
 
                     // Toggle filter pills button
                     IconButton(
-                        onClick = { showFilterPills = !showFilterPills },
+                        onClick = {
+                            SoundManager.playTap()
+                            showFilterPills = !showFilterPills
+                        },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
@@ -459,7 +523,10 @@ fun HomeScreen(
                     // Sort menu button
                     Box {
                         IconButton(
-                            onClick = { showSortMenu = true },
+                            onClick = {
+                                SoundManager.playTap()
+                                showSortMenu = true
+                            },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
@@ -490,6 +557,7 @@ fun HomeScreen(
                                         )
                                     },
                                     onClick = {
+                                        SoundManager.playTap()
                                         onSortOrderChange(order)
                                         showSortMenu = false
                                     },
@@ -532,6 +600,7 @@ fun HomeScreen(
 
                         Surface(
                             onClick = {
+                                SoundManager.playTap()
                                 selectedFilter = filter
                                 selectedBookFilterId = null
                             },
@@ -576,6 +645,7 @@ fun HomeScreen(
 
                             Surface(
                                 onClick = {
+                                    SoundManager.playTap()
                                     if (selectedBookFilterId == book.id) {
                                         selectedBookFilterId = null
                                         selectedFilter = HomeFilter.ALL
@@ -941,8 +1011,14 @@ private fun HeaderGlassButton(
             .size(38.dp)
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { onClick() },
-                    onLongPress = { onLongPress?.invoke() }
+                    onTap = {
+                        SoundManager.playTap()
+                        onClick()
+                    },
+                    onLongPress = {
+                        SoundManager.playTap()
+                        onLongPress?.invoke()
+                    }
                 )
             }
     ) {

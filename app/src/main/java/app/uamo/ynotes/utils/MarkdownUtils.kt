@@ -178,6 +178,8 @@ private val strikeRegex = Regex("~~(.*?)~~")
 private val headerRegex = Regex("(?m)^(#{1,3})\\s+(.*)$")
 private val codeRegex = Regex("`(.*?)`")
 private val quoteRegex = Regex("(?m)^>\\s+(.*)$")
+private val bulletRegex = Regex("(?m)^[-*+]\\s+(.*)$")
+private val checklistRegex = Regex("(?m)^-\\s*\\[([ xX])\\]\\s+(.*)$")
 
 fun formatMarkdownLive(
     text: String,
@@ -190,15 +192,18 @@ fun formatMarkdownLive(
     val lineEnd = text.indexOf('\n', cursor).let { if (it == -1) text.length else it }
     val activeLineRange = lineStart..lineEnd
 
-    val subtleGray = baseColor.copy(alpha = 0.38f)
+    val subtleGray = baseColor.copy(alpha = 0.40f)
     val hiddenStyle = SpanStyle(color = Color.Transparent, fontSize = 0.01.sp)
 
     fun getDelimiterStyle(matchRange: IntRange): SpanStyle {
-        val isActive = matchRange.first in activeLineRange || matchRange.last in activeLineRange
         return if (hideMarkdownSyntax) {
-            if (isActive) SpanStyle(color = subtleGray) else hiddenStyle
+            // Mode OFF: syntax symbols disappear COMPLETELY from the text (never shown in gray)
+            hiddenStyle
         } else {
-            SpanStyle(color = subtleGray)
+            // Mode ON (Live Preview): syntax symbols appear only on the exact active line or element
+            val isCursorNear = cursor in (matchRange.first - 1).coerceAtLeast(0)..(matchRange.last + 2).coerceAtMost(text.length) ||
+                               (matchRange.first >= lineStart && matchRange.last <= lineEnd)
+            if (isCursorNear) SpanStyle(color = subtleGray) else hiddenStyle
         }
     }
 
@@ -244,32 +249,59 @@ fun formatMarkdownLive(
                 2 -> 20.sp
                 else -> 18.sp
             }
-            val dStyle = getDelimiterStyle(match.range)
+            val dStyle = getDelimiterStyle(match.range.first until (match.range.first + prefixLen))
             addStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = fontSize), match.range.first + prefixLen, match.range.last + 1)
             addStyle(dStyle, match.range.first, match.range.first + prefixLen)
         }
 
         // Code inline: `code`
-        val codeBgColor = baseColor.copy(alpha = 0.1f)
+        val codeBgColor = baseColor.copy(alpha = 0.12f)
         codeRegex.findAll(text).forEach { match ->
             if (match.value.length >= 2) {
                 val dStyle = getDelimiterStyle(match.range)
-                addStyle(SpanStyle(background = codeBgColor, fontWeight = FontWeight.SemiBold), match.range.first + 1, match.range.last)
+                addStyle(
+                    SpanStyle(
+                        background = codeBgColor,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    match.range.first + 1,
+                    match.range.last
+                )
                 addStyle(dStyle, match.range.first, match.range.first + 1)
                 addStyle(dStyle, match.range.last, match.range.last + 1)
             }
         }
 
         // Quotes: > Quote
-        val quoteColor = baseColor.copy(alpha = 0.65f)
+        val quoteColor = baseColor.copy(alpha = 0.70f)
         quoteRegex.findAll(text).forEach { match ->
-            val dStyle = getDelimiterStyle(match.range)
+            val dStyle = getDelimiterStyle(match.range.first until (match.range.first + 2))
             addStyle(SpanStyle(color = quoteColor, fontStyle = FontStyle.Italic), match.range.first + 2, match.range.last + 1)
             addStyle(dStyle, match.range.first, match.range.first + 2)
+        }
+
+        // Checklist: - [ ] or - [x]
+        checklistRegex.findAll(text).forEach { match ->
+            val isChecked = match.groupValues[1].isNotBlank()
+            val prefixLen = match.value.length - match.groupValues[2].length
+            val dStyle = getDelimiterStyle(match.range.first until (match.range.first + prefixLen))
+            addStyle(dStyle, match.range.first, match.range.first + prefixLen)
+            if (isChecked) {
+                addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = baseColor.copy(alpha = 0.5f)), match.range.first + prefixLen, match.range.last + 1)
+            }
+        }
+
+        // Bullet list: - or *
+        bulletRegex.findAll(text).forEach { match ->
+            if (!match.value.startsWith("- [")) {
+                val dStyle = getDelimiterStyle(match.range.first until (match.range.first + 2))
+                addStyle(dStyle, match.range.first, match.range.first + 2)
+            }
         }
     }
 }
 
 fun parseMarkdownSync(text: String, baseColor: Color): AnnotatedString {
-    return formatMarkdownLive(text, baseColor, cursorPosition = 0, hideMarkdownSyntax = false)
+    return formatMarkdownLive(text, baseColor, cursorPosition = 0, hideMarkdownSyntax = true)
 }

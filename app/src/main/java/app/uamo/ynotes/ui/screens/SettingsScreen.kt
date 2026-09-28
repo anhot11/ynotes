@@ -70,7 +70,7 @@ fun SettingsScreen(
     var backupPasswordInput by remember { mutableStateOf("") }
     var backupPasswordConfirmInput by remember { mutableStateOf("") }
     var isBackupPasswordVisible by remember { mutableStateOf(false) }
-    var pendingExportUri by remember { mutableStateOf<Uri?>(null) }
+    var validatedExportPassword by remember { mutableStateOf<String?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessingBackup by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
@@ -79,11 +79,26 @@ fun SettingsScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
-        if (uri != null) {
-            pendingExportUri = uri
-            backupPasswordInput = ""
-            backupPasswordConfirmInput = ""
-            showExportPasswordDialog = true
+        val pwd = validatedExportPassword
+        if (uri != null && !pwd.isNullOrEmpty()) {
+            isProcessingBackup = true
+            coroutineScope.launch {
+                val result = BackupManager.exportBackup(context, uri, pwd)
+                isProcessingBackup = false
+                validatedExportPassword = null
+                when (result) {
+                    is BackupManager.BackupResult.Success -> {
+                        backupStatusMessage = "Copia exportada con éxito:\n${result.notesCount} notas y ${result.booksCount} cuadernos protegidos con AES-256-GCM."
+                        showBackupResultDialog = true
+                    }
+                    is BackupManager.BackupResult.Error -> {
+                        backupStatusMessage = result.message
+                        showBackupResultDialog = true
+                    }
+                }
+            }
+        } else {
+            validatedExportPassword = null
         }
     }
 
@@ -250,7 +265,10 @@ fun SettingsScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        IconButton(onClick = {
+                            SoundManager.playTap()
+                            onNavigateBack()
+                        }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
                         }
                     }
@@ -519,8 +537,10 @@ fun SettingsScreen(
                             icon = Icons.Default.CloudUpload,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = {
-                                val dateStr = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US).format(java.util.Date())
-                                exportLauncher.launch("ynotes_backup_$dateStr.ynote")
+                                SoundManager.playTap()
+                                backupPasswordInput = ""
+                                backupPasswordConfirmInput = ""
+                                showExportPasswordDialog = true
                             }
                         )
 
@@ -535,6 +555,7 @@ fun SettingsScreen(
                             icon = Icons.Default.CloudDownload,
                             iconTint = MaterialTheme.colorScheme.secondary,
                             onClick = {
+                                SoundManager.playTap()
                                 importLauncher.launch(arrayOf("*/*"))
                             }
                         )
@@ -676,39 +697,29 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        SoundManager.playTap()
                         if (backupPasswordInput.length < 4) {
-                            exportError = "La contraseña debe tener al menos 4 caracteres."
+                            exportError = "El código de acceso debe tener al menos 4 dígitos/caracteres."
                             return@Button
                         }
                         if (backupPasswordInput != backupPasswordConfirmInput) {
                             exportError = "Las contraseñas no coinciden."
                             return@Button
                         }
-                        val uri = pendingExportUri ?: return@Button
-                        val pwd = backupPasswordInput
+                        validatedExportPassword = backupPasswordInput
                         showExportPasswordDialog = false
-                        isProcessingBackup = true
-                        coroutineScope.launch {
-                            val result = BackupManager.exportBackup(context, uri, pwd)
-                            isProcessingBackup = false
-                            when (result) {
-                                is BackupManager.BackupResult.Success -> {
-                                    backupStatusMessage = "Copia exportada con éxito:\n${result.notesCount} notas y ${result.booksCount} cuadernos protegidos con AES-256-GCM."
-                                    showBackupResultDialog = true
-                                }
-                                is BackupManager.BackupResult.Error -> {
-                                    backupStatusMessage = result.message
-                                    showBackupResultDialog = true
-                                }
-                            }
-                        }
+                        val dateStr = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US).format(java.util.Date())
+                        exportLauncher.launch("ynotes_backup_$dateStr.ynote")
                     }
                 ) {
-                    Text("Exportar")
+                    Text("Continuar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showExportPasswordDialog = false }) {
+                TextButton(onClick = {
+                    SoundManager.playTap()
+                    showExportPasswordDialog = false
+                }) {
                     Text("Cancelar")
                 }
             }
@@ -725,7 +736,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        "Introduce la contraseña maestra con la que se protegió el archivo de respaldo.",
+                        "Introduce la contraseña maestra (mínimo 4 caracteres) con la que se protegió el archivo de respaldo.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -755,6 +766,11 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        SoundManager.playTap()
+                        if (backupPasswordInput.length < 4) {
+                            importError = "El código de acceso debe tener al menos 4 caracteres."
+                            return@Button
+                        }
                         val uri = pendingImportUri ?: return@Button
                         val pwd = backupPasswordInput
                         showImportPasswordDialog = false
@@ -779,7 +795,10 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showImportPasswordDialog = false }) {
+                TextButton(onClick = {
+                    SoundManager.playTap()
+                    showImportPasswordDialog = false
+                }) {
                     Text("Cancelar")
                 }
             }
@@ -866,7 +885,10 @@ fun SettingSwitchItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .clickable(enabled = enabled) {
+                SoundManager.playTap()
+                onCheckedChange(!checked)
+            }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -898,7 +920,10 @@ fun SettingSwitchItem(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = {
+                SoundManager.playTap()
+                onCheckedChange(it)
+            },
             enabled = enabled
         )
     }
@@ -915,7 +940,10 @@ fun SettingActionItem(
 ) {
     val rowModifier = Modifier
         .fillMaxWidth()
-        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        .then(if (onClick != null) Modifier.clickable {
+            SoundManager.playTap()
+            onClick()
+        } else Modifier)
         .padding(horizontal = 16.dp, vertical = 14.dp)
 
     Row(

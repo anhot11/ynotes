@@ -47,6 +47,7 @@ import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.ui.theme.*
 import app.uamo.ynotes.utils.MediaManager
+import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.utils.sharedElementTransition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -474,6 +475,7 @@ fun EditorScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = {
+                            SoundManager.playTap()
                             saveNow()
                             onNavigateBack()
                         }) {
@@ -483,6 +485,7 @@ fun EditorScreen(
                     actions = {
                         // Pin button
                         IconButton(onClick = {
+                            SoundManager.playTap()
                             isPinned = !isPinned
                             saveNow()
                         }) {
@@ -493,7 +496,10 @@ fun EditorScreen(
                             )
                         }
                         // Options BottomSheet button
-                        IconButton(onClick = { showPropertiesSheet = true }) {
+                        IconButton(onClick = {
+                            SoundManager.playTap()
+                            showPropertiesSheet = true
+                        }) {
                             Icon(
                                 Icons.Default.MoreVert,
                                 contentDescription = "Opciones de la nota",
@@ -502,6 +508,7 @@ fun EditorScreen(
                         }
                         // Save & exit checkmark
                         IconButton(onClick = {
+                            SoundManager.playTap()
                             saveNow()
                             onNavigateBack()
                         }) {
@@ -702,7 +709,10 @@ fun EditorScreen(
                     ) {
                         // Undo ("Atrás") - ALWAYS VISIBLE
                         IconButton(
-                            onClick = { performUndo() },
+                            onClick = {
+                                SoundManager.playTap()
+                                performUndo()
+                            },
                             enabled = canUndo,
                             modifier = Modifier.size(36.dp)
                         ) {
@@ -716,7 +726,10 @@ fun EditorScreen(
 
                         // Redo ("Alante") - ALWAYS VISIBLE
                         IconButton(
-                            onClick = { performRedo() },
+                            onClick = {
+                                SoundManager.playTap()
+                                performRedo()
+                            },
                             enabled = canRedo,
                             modifier = Modifier.size(36.dp)
                         ) {
@@ -1034,6 +1047,7 @@ fun EditorScreen(
                                         shape = CircleShape
                                     )
                                     .clickable {
+                                        SoundManager.playTap()
                                         noteColor = colorValue
                                         saveNow()
                                     },
@@ -1069,6 +1083,7 @@ fun EditorScreen(
                             FilterChip(
                                 selected = bookId == null,
                                 onClick = {
+                                    SoundManager.playTap()
                                     bookId = null
                                     saveNow()
                                 },
@@ -1081,6 +1096,7 @@ fun EditorScreen(
                                 FilterChip(
                                     selected = bookId == book.id,
                                     onClick = {
+                                        SoundManager.playTap()
                                         bookId = book.id
                                         saveNow()
                                     },
@@ -1109,6 +1125,7 @@ fun EditorScreen(
                                 Icon(Icons.Default.Fullscreen, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             },
                             modifier = Modifier.clickable {
+                                SoundManager.playTap()
                                 showPropertiesSheet = false
                                 isFocusMode = true
                             }
@@ -1130,6 +1147,7 @@ fun EditorScreen(
                                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             },
                             modifier = Modifier.clickable {
+                                SoundManager.playTap()
                                 showPropertiesSheet = false
                                 launchImagePicker()
                             }
@@ -1153,6 +1171,7 @@ fun EditorScreen(
                                 Switch(
                                     checked = isBodyHidden,
                                     onCheckedChange = {
+                                        SoundManager.playTap()
                                         isBodyHidden = it
                                         saveNow()
                                     }
@@ -1174,6 +1193,7 @@ fun EditorScreen(
                                 Switch(
                                     checked = isWidgetSpecial,
                                     onCheckedChange = {
+                                        SoundManager.playTap()
                                         isWidgetSpecial = it
                                         if (!it) expiresAt = null
                                         saveNow()
@@ -1202,22 +1222,38 @@ fun EditorScreen(
                                     val isNever = expiresAt == null
                                     FilterChip(
                                         selected = isNever,
-                                        onClick = { expiresAt = null; saveNow() },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            expiresAt = null
+                                            saveNow()
+                                        },
                                         label = { Text("Siempre") }
                                     )
                                     FilterChip(
                                         selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) in 1..3600000L,
-                                        onClick = { expiresAt = System.currentTimeMillis() + 3600000L; saveNow() },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            expiresAt = System.currentTimeMillis() + 3600000L
+                                            saveNow()
+                                        },
                                         label = { Text("1 hora") }
                                     )
                                     FilterChip(
                                         selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) in 3600001L..86400000L,
-                                        onClick = { expiresAt = System.currentTimeMillis() + 86400000L; saveNow() },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            expiresAt = System.currentTimeMillis() + 86400000L
+                                            saveNow()
+                                        },
                                         label = { Text("24 horas") }
                                     )
                                     FilterChip(
                                         selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) > 86400000L,
-                                        onClick = { expiresAt = System.currentTimeMillis() + 604800000L; saveNow() },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            expiresAt = System.currentTimeMillis() + 604800000L
+                                            saveNow()
+                                        },
                                         label = { Text("1 semana") }
                                     )
                                 }
@@ -1270,7 +1306,10 @@ private fun ToolbarItemButton(
     content: @Composable () -> Unit
 ) {
     Surface(
-        onClick = onClick,
+        onClick = {
+            SoundManager.playTap()
+            onClick()
+        },
         enabled = enabled,
         shape = RoundedCornerShape(8.dp),
         color = containerColor,

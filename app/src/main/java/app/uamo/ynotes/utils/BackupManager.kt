@@ -146,7 +146,7 @@ object BackupManager {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
 
-            val outputStream = context.contentResolver.openOutputStream(destinationUri)
+            val outputStream = context.contentResolver.openOutputStream(destinationUri, "wt")
                 ?: return@withContext BackupResult.Error("No se pudo abrir el archivo de destino para escritura.")
 
             outputStream.use { os ->
@@ -323,6 +323,18 @@ object BackupManager {
             }
 
             db.noteDao().insertNotes(restoredNotes)
+
+            // Self-destruct / invalidate backup file so it cannot be reused
+            try {
+                android.provider.DocumentsContract.deleteDocument(context.contentResolver, sourceUri)
+            } catch (_: Throwable) {
+                try {
+                    context.contentResolver.openOutputStream(sourceUri, "wt")?.use { os ->
+                        os.write(ByteArray(128))
+                        os.flush()
+                    }
+                } catch (_: Throwable) {}
+            }
 
             BackupResult.Success(restoredNotes.size, manifest!!.books.size)
         } catch (e: Throwable) {
