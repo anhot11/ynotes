@@ -58,4 +58,16 @@ interface NoteDao {
 
     @Query("UPDATE notes SET bookId = NULL WHERE bookId = :bookId")
     suspend fun removeBookFromNotes(bookId: String)
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotesDirect(): List<NoteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotes(notes: List<NoteEntity>)
+
+    @Query("SELECT * FROM books")
+    suspend fun getAllBooksDirect(): List<BookEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBooks(books: List<BookEntity>)
 }

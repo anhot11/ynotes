@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,11 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.appwidget.updateAll
 import app.uamo.ynotes.ui.components.CustomIcons
+import app.uamo.ynotes.utils.BackupManager
 import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.widget.YNotesWidget
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +63,39 @@ fun SettingsScreen(
     var inputPassword by remember { mutableStateOf("") }
     var inputMode by remember { mutableStateOf(currentTriggerMode) }
     var showDonationDialog by remember { mutableStateOf(false) }
+
+    // Backup & Restore states
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var backupPasswordInput by remember { mutableStateOf("") }
+    var backupPasswordConfirmInput by remember { mutableStateOf("") }
+    var isBackupPasswordVisible by remember { mutableStateOf(false) }
+    var pendingExportUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    var isProcessingBackup by remember { mutableStateOf(false) }
+    var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+    var showBackupResultDialog by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null) {
+            pendingExportUri = uri
+            backupPasswordInput = ""
+            backupPasswordConfirmInput = ""
+            showExportPasswordDialog = true
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pendingImportUri = uri
+            backupPasswordInput = ""
+            showImportPasswordDialog = true
+        }
+    }
 
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
@@ -469,6 +507,40 @@ fun SettingsScreen(
                     }
                 }
 
+                // 💾 CATEGORY: COPIA DE SEGURIDAD & DATOS
+                SettingsCategorySection(
+                    title = "Copia de Seguridad & Datos",
+                    icon = Icons.Default.CloudSync
+                ) {
+                    Column {
+                        SettingActionItem(
+                            title = "Exportar Copia Cifrada",
+                            subtitle = "Copia protegida con contraseña (.ynote) con todas tus notas, secretos y fotos",
+                            icon = Icons.Default.CloudUpload,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = {
+                                val dateStr = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US).format(java.util.Date())
+                                exportLauncher.launch("ynotes_backup_$dateStr.ynote")
+                            }
+                        )
+
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+
+                        SettingActionItem(
+                            title = "Restaurar Copia Cifrada",
+                            subtitle = "Recupera tus notas desde un archivo de respaldo .ynote",
+                            icon = Icons.Default.CloudDownload,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            onClick = {
+                                importLauncher.launch(arrayOf("*/*"))
+                            }
+                        )
+                    }
+                }
+
                 // ℹ️ CATEGORY 4: INFORMACIÓN & DONACIONES
                 SettingsCategorySection(
                     title = "Información & Proyecto",
@@ -550,6 +622,195 @@ fun SettingsScreen(
                     Icon(CustomIcons.PayPal, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("PayPal")
+                }
+            }
+        )
+    }
+
+    // ── Export Password Dialog ──
+    if (showExportPasswordDialog) {
+        var exportError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showExportPasswordDialog = false },
+            icon = { Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Exportar Copia Cifrada", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+            text = {
+                Column {
+                    Text(
+                        "Protege tu copia de seguridad con una contraseña. Se cifrarán todas tus notas (públicas y secretas), libros y fotos con AES-256-GCM.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = backupPasswordInput,
+                        onValueChange = { backupPasswordInput = it; exportError = null },
+                        label = { Text("Contraseña de respaldo") },
+                        singleLine = true,
+                        visualTransformation = if (isBackupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isBackupPasswordVisible = !isBackupPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isBackupPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = backupPasswordConfirmInput,
+                        onValueChange = { backupPasswordConfirmInput = it; exportError = null },
+                        label = { Text("Confirmar contraseña") },
+                        singleLine = true,
+                        visualTransformation = if (isBackupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (exportError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(exportError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (backupPasswordInput.length < 4) {
+                            exportError = "La contraseña debe tener al menos 4 caracteres."
+                            return@Button
+                        }
+                        if (backupPasswordInput != backupPasswordConfirmInput) {
+                            exportError = "Las contraseñas no coinciden."
+                            return@Button
+                        }
+                        val uri = pendingExportUri ?: return@Button
+                        val pwd = backupPasswordInput
+                        showExportPasswordDialog = false
+                        isProcessingBackup = true
+                        coroutineScope.launch {
+                            val result = BackupManager.exportBackup(context, uri, pwd)
+                            isProcessingBackup = false
+                            when (result) {
+                                is BackupManager.BackupResult.Success -> {
+                                    backupStatusMessage = "Copia exportada con éxito:\n${result.notesCount} notas y ${result.booksCount} cuadernos protegidos con AES-256-GCM."
+                                    showBackupResultDialog = true
+                                }
+                                is BackupManager.BackupResult.Error -> {
+                                    backupStatusMessage = result.message
+                                    showBackupResultDialog = true
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Exportar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportPasswordDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ── Import Password Dialog ──
+    if (showImportPasswordDialog) {
+        var importError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showImportPasswordDialog = false },
+            icon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Restaurar Copia Cifrada", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+            text = {
+                Column {
+                    Text(
+                        "Introduce la contraseña maestra con la que se protegió el archivo de respaldo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = backupPasswordInput,
+                        onValueChange = { backupPasswordInput = it; importError = null },
+                        label = { Text("Contraseña de respaldo") },
+                        singleLine = true,
+                        visualTransformation = if (isBackupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isBackupPasswordVisible = !isBackupPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isBackupPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (importError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(importError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingImportUri ?: return@Button
+                        val pwd = backupPasswordInput
+                        showImportPasswordDialog = false
+                        isProcessingBackup = true
+                        coroutineScope.launch {
+                            val result = BackupManager.restoreBackup(context, uri, pwd)
+                            isProcessingBackup = false
+                            when (result) {
+                                is BackupManager.BackupResult.Success -> {
+                                    backupStatusMessage = "Restauración completada con éxito:\n${result.notesCount} notas y ${result.booksCount} cuadernos restaurados."
+                                    showBackupResultDialog = true
+                                }
+                                is BackupManager.BackupResult.Error -> {
+                                    backupStatusMessage = result.message
+                                    showBackupResultDialog = true
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Restaurar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportPasswordDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ── Processing Dialog ──
+    if (isProcessingBackup) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Procesando copia de seguridad") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Cifrando/descifrando datos...", style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    // ── Result Dialog ──
+    if (showBackupResultDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackupResultDialog = false },
+            title = { Text("Copia de Seguridad") },
+            text = { Text(backupStatusMessage ?: "") },
+            confirmButton = {
+                Button(onClick = { showBackupResultDialog = false }) {
+                    Text("Entendido")
                 }
             }
         )
