@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">yNotes</string>
+    <string name="widget_name">yNotes Widget</string>
+    <string name="widget_description">Access your notes, interactive checklists and secure vault from your home screen</string>
+    <string name="new_note">New note</string>
+    <string name="safe_zone">Safe Zone</string>
+    <string name="trash">Trash</string>
+    <string name="books">Notebooks</string>
+    <string name="settings">Settings</string>
+    <string name="search">Search</string>
+    <string name="pinned">Pinned</string>
+    <string name="delete">Delete</string>
+    <string name="undo">Undo</string>
+    <string name="save">Save</string>
+    <string name="saved">Saved</string>
+    <string name="saving">Saving…</string>
+</resources>

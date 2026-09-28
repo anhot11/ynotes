@@ -905,7 +905,7 @@ private fun NotesContent(
         }
     } else {
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(2),
+            columns = StaggeredGridCells.Adaptive(minSize = 175.dp),
             modifier = modifier,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

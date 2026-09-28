@@ -11,4 +11,5 @@
     android:widgetCategory="home_screen"
     android:previewImage="@mipmap/ic_launcher"
     android:initialLayout="@layout/ynotes_widget_initial"
+    android:description="@string/widget_description"
     android:configure="app.uamo.ynotes.widget.WidgetConfigurationActivity" />
