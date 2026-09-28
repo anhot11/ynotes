@@ -64,6 +64,13 @@ fun SettingsScreen(
     var inputMode by remember { mutableStateOf(currentTriggerMode) }
     var showDonationDialog by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
+    var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
+    var widgetShowSafeZone by remember { mutableStateOf(sharedPrefs.getBoolean("widget_show_safe_zone", false)) }
+    val isSoundEnabled by SoundManager.isSoundEnabled.collectAsState()
+
     // Backup & Restore states
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var showImportPasswordDialog by remember { mutableStateOf(false) }
@@ -111,13 +118,6 @@ fun SettingsScreen(
             showImportPasswordDialog = true
         }
     }
-
-    val context = LocalContext.current
-    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
-    var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
-    var widgetShowSafeZone by remember { mutableStateOf(sharedPrefs.getBoolean("widget_show_safe_zone", false)) }
-    val isSoundEnabled by SoundManager.isSoundEnabled.collectAsState()
-    val coroutineScope = rememberCoroutineScope()
 
     val biometricManager = remember { BiometricManager.from(context) }
     val canAuthenticate = remember {
