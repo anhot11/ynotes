@@ -255,7 +255,7 @@ fun HomeScreen(
                     expanded = isFabExpanded,
                     icon = { Icon(Icons.Default.Edit, "Añadir Nota", modifier = Modifier.size(20.dp)) },
                     text = { Text("Nueva nota", fontWeight = FontWeight.Bold) },
-                    containerColor = AuroraPrimary,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                     shape = RoundedCornerShape(20.dp)
                 )

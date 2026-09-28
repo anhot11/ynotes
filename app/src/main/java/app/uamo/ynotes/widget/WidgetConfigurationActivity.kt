@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.updateAll
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteDatabase
 import app.uamo.ynotes.data.NoteEntity
@@ -62,7 +63,7 @@ class WidgetConfigurationActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        androidx.activity.enableEdgeToEdge()
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
 
         // Set default cancelled in case the user closes without saving
         setResult(Activity.RESULT_CANCELED)

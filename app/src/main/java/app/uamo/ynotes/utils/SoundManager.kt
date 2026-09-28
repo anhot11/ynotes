@@ -115,6 +115,11 @@ object SoundManager {
     }
 
     /**
+     * Alias for item selection feedback.
+     */
+    fun playSelect() = playTap()
+
+    /**
      * Plays the gentle note deletion "whoosh" sound.
      * Duration: ~180ms.
      */
