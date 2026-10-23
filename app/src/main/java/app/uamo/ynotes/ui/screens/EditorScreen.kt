@@ -1,10 +1,12 @@
 package app.uamo.ynotes.ui.screens
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,13 +30,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +76,20 @@ fun EditorScreen(
     onDelete: (id: String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     val stableNoteId = remember { editingNote?.id ?: UUID.randomUUID().toString() }
+    val noteMarkdownKey = remember(stableNoteId) { "MARKDOWN_NOTE_$stableNoteId" }
+
+    var isNoteMarkdownEnabled by remember {
+        mutableStateOf(
+            if (sharedPrefs.contains(noteMarkdownKey)) {
+                sharedPrefs.getBoolean(noteMarkdownKey, true)
+            } else {
+                sharedPrefs.getBoolean("MARKDOWN_ENABLED", true)
+            }
+        )
+    }
 
     var titleText by remember { mutableStateOf(editingNote?.title ?: "") }
     var bodyTextFieldValue by remember { mutableStateOf(TextFieldValue(editingNote?.body ?: "")) }
@@ -95,15 +113,31 @@ fun EditorScreen(
     val mediaBitmaps = remember { mutableStateMapOf<String, Bitmap>() }
 
     var showColorPicker by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
     var showBookMenu by remember { mutableStateOf(false) }
     var showWidgetMenu by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var debounceJob by remember { mutableStateOf<Job?>(null) }
 
     val cursorColor = if (isSecret) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    val backgroundColor = if (noteColor == 0L) MaterialTheme.colorScheme.background else Color(noteColor)
+    val defaultBgColor = MaterialTheme.colorScheme.background
+    val backgroundColor = if (noteColor == 0L) defaultBgColor else Color(noteColor)
+    val view = LocalView.current
+
+    DisposableEffect(backgroundColor) {
+        val window = (view.context as? android.app.Activity)?.window
+        val bgArgb = backgroundColor.toArgb()
+        window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgArgb))
+        window?.decorView?.setBackgroundColor(bgArgb)
+        view.setBackgroundColor(bgArgb)
+        onDispose {
+            val restoreArgb = defaultBgColor.toArgb()
+            window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(restoreArgb))
+            window?.decorView?.setBackgroundColor(restoreArgb)
+            view.setBackgroundColor(restoreArgb)
+        }
+    }
 
     fun mediaFilesString(): String = mediaFileNames.joinToString("|")
 
@@ -401,7 +435,9 @@ fun EditorScreen(
     }
 
     Scaffold(
-        modifier = Modifier.sharedElementTransition("note-$stableNoteId"),
+        modifier = Modifier
+            .sharedElementTransition("note-$stableNoteId")
+            .background(backgroundColor),
         containerColor = backgroundColor,
         topBar = {
             TopAppBar(
@@ -431,18 +467,222 @@ fun EditorScreen(
                             tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (isBooksEnabled && books.isNotEmpty()) {
-                        Box {
-                            IconButton(onClick = {
-                                SoundManager.playTap()
-                                showBookMenu = true
-                            }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.MenuBook,
-                                    contentDescription = "Libro",
-                                    tint = if (bookId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        showColorPicker = !showColorPicker
+                    }) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = "Color",
+                            tint = if (noteColor != 0L) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        saveAndExitOnce()
+                    }) {
+                        Icon(Icons.Default.Check, contentDescription = "Guardar Nota")
+                    }
+                    Box {
+                        IconButton(onClick = {
+                            SoundManager.playTap()
+                            showMoreMenu = true
+                        }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "Más opciones",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (isNoteMarkdownEnabled) "Desactivar Markdown" else "Activar Markdown")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Code,
+                                        contentDescription = null,
+                                        tint = if (isNoteMarkdownEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    val newState = !isNoteMarkdownEnabled
+                                    isNoteMarkdownEnabled = newState
+                                    sharedPrefs.edit().putBoolean(noteMarkdownKey, newState).apply()
+                                    showMoreMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (isWidgetSpecial) "Fijar en Widget (Activo)" else "Fijar en Widget")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Timer,
+                                        contentDescription = null,
+                                        tint = if (isWidgetSpecial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    showMoreMenu = false
+                                    showWidgetMenu = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Adjuntar imagen") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    showMoreMenu = false
+                                    launchImagePicker()
+                                }
+                            )
+                            if (isBooksEnabled && books.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Asignar a cuaderno") },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = null,
+                                            tint = if (bookId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        showMoreMenu = false
+                                        showBookMenu = true
+                                    }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (isBodyHidden) "Mostrar texto en tarjetas" else "Ocultar texto en tarjetas")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (isBodyHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null,
+                                        tint = if (isBodyHidden) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isBodyHidden = !isBodyHidden
+                                    showMoreMenu = false
+                                    saveNow()
+                                }
+                            )
+                            if (editingNote != null) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "Eliminar nota",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        showMoreMenu = false
+                                        if (!isExiting) {
+                                            isExiting = true
+                                            isDeleted = true
+                                            debounceJob?.cancel()
+                                            onDelete(editingNote.id)
+                                            onNavigateBack()
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showWidgetMenu,
+                            onDismissRequest = { showWidgetMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(if (isWidgetSpecial) "Desactivar Widget" else "Fijar en Widget") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Timer,
+                                        contentDescription = null,
+                                        tint = if (isWidgetSpecial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isWidgetSpecial = !isWidgetSpecial
+                                    if (!isWidgetSpecial) {
+                                        expiresAt = null
+                                    }
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Fijar sin expiración", fontWeight = if (isWidgetSpecial && expiresAt == null) FontWeight.Bold else FontWeight.Normal) },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isWidgetSpecial = true
+                                    expiresAt = null
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Expira en 1 hora") },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isWidgetSpecial = true
+                                    expiresAt = System.currentTimeMillis() + 3600000L
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Expira en 1 día") },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isWidgetSpecial = true
+                                    expiresAt = System.currentTimeMillis() + 86400000L
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Expira en 1 semana") },
+                                onClick = {
+                                    SoundManager.playTap()
+                                    isWidgetSpecial = true
+                                    expiresAt = System.currentTimeMillis() + 604800000L
+                                    showWidgetMenu = false
+                                    saveNow()
+                                }
+                            )
+                        }
+
+                        if (isBooksEnabled && books.isNotEmpty()) {
                             DropdownMenu(
                                 expanded = showBookMenu,
                                 onDismissRequest = { showBookMenu = false }
@@ -470,136 +710,15 @@ fun EditorScreen(
                             }
                         }
                     }
-                    Box {
-                        IconButton(onClick = {
-                            SoundManager.playTap()
-                            showWidgetMenu = true
-                        }) {
-                            Icon(
-                                Icons.Default.Timer,
-                                contentDescription = "Widget",
-                                tint = if (isWidgetSpecial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showWidgetMenu,
-                            onDismissRequest = { showWidgetMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(if (isWidgetSpecial) "Desactivar Widget" else "Fijar en Widget") },
-                                onClick = {
-                                    SoundManager.playTap()
-                                    isWidgetSpecial = !isWidgetSpecial
-                                    if (!isWidgetSpecial) {
-                                        expiresAt = null
-                                    }
-                                    showWidgetMenu = false
-                                    saveNow()
-                                }
-                            )
-                            if (isWidgetSpecial) {
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("No expira", fontWeight = if (expiresAt == null) FontWeight.Bold else FontWeight.Normal) },
-                                    onClick = {
-                                        SoundManager.playTap()
-                                        expiresAt = null
-                                        showWidgetMenu = false
-                                        saveNow()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Expira en 1 hora") },
-                                    onClick = {
-                                        SoundManager.playTap()
-                                        expiresAt = System.currentTimeMillis() + 3600000L
-                                        showWidgetMenu = false
-                                        saveNow()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Expira en 1 día") },
-                                    onClick = {
-                                        SoundManager.playTap()
-                                        expiresAt = System.currentTimeMillis() + 86400000L
-                                        showWidgetMenu = false
-                                        saveNow()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Expira en 1 semana") },
-                                    onClick = {
-                                        SoundManager.playTap()
-                                        expiresAt = System.currentTimeMillis() + 604800000L
-                                        showWidgetMenu = false
-                                        saveNow()
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    IconButton(onClick = {
-                        SoundManager.playTap()
-                        showColorPicker = !showColorPicker
-                    }) {
-                        Icon(
-                            Icons.Default.Palette,
-                            contentDescription = "Color",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = {
-                        SoundManager.playTap()
-                        launchImagePicker()
-                    }) {
-                        Icon(
-                            Icons.Default.AttachFile,
-                            contentDescription = "Adjuntar imagen",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = {
-                        SoundManager.playTap()
-                        isBodyHidden = !isBodyHidden
-                        saveNow()
-                    }) {
-                        Icon(
-                            if (isBodyHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Ocultar descripción",
-                            tint = if (isBodyHidden) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (editingNote != null) {
-                        IconButton(onClick = {
-                            if (!isExiting) {
-                                isExiting = true
-                                isDeleted = true
-                                debounceJob?.cancel()
-                                onDelete(editingNote.id)
-                                onNavigateBack()
-                            }
-                        }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Eliminar Nota",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                    IconButton(onClick = {
-                        SoundManager.playTap()
-                        saveAndExitOnce()
-                    }) {
-                        Icon(Icons.Default.Check, contentDescription = "Guardar Nota")
-                    }
                 }
             )
         }
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
                 .fillMaxSize()
+                .background(backgroundColor)
+                .padding(innerPadding)
                 .imePadding()
         ) {
             if (showColorPicker) {
@@ -749,8 +868,12 @@ fun EditorScreen(
                         )
                     }
                     val onBackgroundColor = MaterialTheme.colorScheme.onBackground
-                    val visualTransformation = remember(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax) {
-                        MarkdownLiveVisualTransformation(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax)
+                    val visualTransformation = remember(isNoteMarkdownEnabled, onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax) {
+                        if (isNoteMarkdownEnabled) {
+                            MarkdownLiveVisualTransformation(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax)
+                        } else {
+                            VisualTransformation.None
+                        }
                     }
                     BasicTextField(
                         value = bodyTextFieldValue,
@@ -768,215 +891,217 @@ fun EditorScreen(
             }
 
             // Compact Markdown Formatting Bar
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
-            ) {
-                Row(
+            AnimatedVisibility(visible = isNoteMarkdownEnabled) {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
                 ) {
-                    IconButton(
-                        onClick = {
-                            SoundManager.playTap()
-                            performUndo()
-                        },
-                        enabled = canUndo,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Undo,
-                            contentDescription = "Deshacer",
-                            modifier = Modifier.size(18.dp),
-                            tint = if (canUndo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = {
-                            SoundManager.playTap()
-                            performRedo()
-                        },
-                        enabled = canRedo,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Redo,
-                            contentDescription = "Rehacer",
-                            modifier = Modifier.size(18.dp),
-                            tint = if (canRedo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                        )
-                    }
-
-                    VerticalDivider(
+                    Row(
                         modifier = Modifier
-                            .height(20.dp)
-                            .padding(horizontal = 2.dp),
-                        color = GlassBorder
-                    )
-
-                    ToolbarItemButton(
-                        onClick = { wrapOrInsert("**", "**") },
-                        contentDescription = "Negrita"
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "B",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                        IconButton(
+                            onClick = {
+                                SoundManager.playTap()
+                                performUndo()
+                            },
+                            enabled = canUndo,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = "Deshacer",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (canUndo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                SoundManager.playTap()
+                                performRedo()
+                            },
+                            enabled = canRedo,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Redo,
+                                contentDescription = "Rehacer",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (canRedo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = GlassBorder
                         )
-                    }
 
-                    ToolbarItemButton(
-                        onClick = { wrapOrInsert("*", "*") },
-                        contentDescription = "Cursiva"
-                    ) {
-                        Text(
-                            text = "I",
-                            fontStyle = FontStyle.Italic,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("**", "**") },
+                            contentDescription = "Negrita"
+                        ) {
+                            Text(
+                                text = "B",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("*", "*") },
+                            contentDescription = "Cursiva"
+                        ) {
+                            Text(
+                                text = "I",
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("~~", "~~") },
+                            contentDescription = "Tachado"
+                        ) {
+                            Text(
+                                text = "S",
+                                textDecoration = TextDecoration.LineThrough,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = GlassBorder
                         )
-                    }
 
-                    ToolbarItemButton(
-                        onClick = { wrapOrInsert("~~", "~~") },
-                        contentDescription = "Tachado"
-                    ) {
-                        Text(
-                            text = "S",
-                            textDecoration = TextDecoration.LineThrough,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("# ") },
+                            contentDescription = "Título H1"
+                        ) {
+                            Text(
+                                text = "H1",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("## ") },
+                            contentDescription = "Título H2"
+                        ) {
+                            Text(
+                                text = "H2",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("### ") },
+                            contentDescription = "Título H3"
+                        ) {
+                            Text(
+                                text = "H3",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = GlassBorder
                         )
-                    }
 
-                    VerticalDivider(
-                        modifier = Modifier
-                            .height(20.dp)
-                            .padding(horizontal = 2.dp),
-                        color = GlassBorder
-                    )
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("- ") },
+                            contentDescription = "Lista con viñetas"
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
 
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("# ") },
-                        contentDescription = "Título H1"
-                    ) {
-                        Text(
-                            text = "H1",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.primary
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("- [ ] ") },
+                            contentDescription = "Lista de tareas"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Checklist,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { insertAtLineStart("> ") },
+                            contentDescription = "Cita"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FormatQuote,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        ToolbarItemButton(
+                            onClick = { wrapOrInsert("`", "`") },
+                            contentDescription = "Código"
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Code,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .padding(horizontal = 2.dp),
+                            color = GlassBorder
                         )
-                    }
 
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("## ") },
-                        contentDescription = "Título H2"
-                    ) {
-                        Text(
-                            text = "H2",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("### ") },
-                        contentDescription = "Título H3"
-                    ) {
-                        Text(
-                            text = "H3",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    VerticalDivider(
-                        modifier = Modifier
-                            .height(20.dp)
-                            .padding(horizontal = 2.dp),
-                        color = GlassBorder
-                    )
-
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("- ") },
-                        contentDescription = "Lista con viñetas"
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("- [ ] ") },
-                        contentDescription = "Lista de tareas"
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Checklist,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    ToolbarItemButton(
-                        onClick = { insertAtLineStart("> ") },
-                        contentDescription = "Cita"
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FormatQuote,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    ToolbarItemButton(
-                        onClick = { wrapOrInsert("`", "`") },
-                        contentDescription = "Código"
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Code,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    VerticalDivider(
-                        modifier = Modifier
-                            .height(20.dp)
-                            .padding(horizontal = 2.dp),
-                        color = GlassBorder
-                    )
-
-                    ToolbarItemButton(
-                        onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
-                        contentDescription = if (hideMarkdownSyntax) "Sintaxis oculta" else "Sintaxis visible",
-                        containerColor = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
-                    ) {
-                        Icon(
-                            imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        ToolbarItemButton(
+                            onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
+                            contentDescription = if (hideMarkdownSyntax) "Sintaxis oculta" else "Sintaxis visible",
+                            containerColor = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
+                        ) {
+                            Icon(
+                                imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

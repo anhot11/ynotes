@@ -134,10 +134,13 @@ fun YNotesTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val bgArgb = colorScheme.background.toArgb()
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgArgb))
+            view.setBackgroundColor(bgArgb)
             @Suppress("DEPRECATION")
-            window.statusBarColor = colorScheme.background.toArgb()
+            window.statusBarColor = bgArgb
             @Suppress("DEPRECATION")
-            window.navigationBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = bgArgb
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = !darkTheme
             insetsController.isAppearanceLightNavigationBars = !darkTheme

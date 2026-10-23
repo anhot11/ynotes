@@ -27,6 +27,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setBackgroundDrawableResource(android.R.color.black)
+        window.decorView.setBackgroundColor(android.graphics.Color.BLACK)
         pendingNavigateRoute = intent?.getStringExtra("navigate_route")
         SoundManager.init(applicationContext)
         setContent {

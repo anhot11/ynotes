@@ -1,5 +1,6 @@
 package app.uamo.ynotes.ui.components
 
+import android.content.Context
 import android.os.SystemClock
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -24,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,8 @@ fun NoteCard(
     bookName: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     val currentTheme = LocalAppTheme.current
     val cardColor = if (note.color == 0L) MaterialTheme.colorScheme.surfaceVariant else Color(note.color)
 
@@ -140,8 +145,18 @@ fun NoteCard(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     val bodyColor = if (isAmoledPinned) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
-                    val parsedBody = remember(note.body, bodyColor) {
-                        parseMarkdownForPreview(note.body, bodyColor)
+                    val noteMarkdownKey = "MARKDOWN_NOTE_${note.id}"
+                    val isMarkdownEnabled = if (sharedPrefs.contains(noteMarkdownKey)) {
+                        sharedPrefs.getBoolean(noteMarkdownKey, true)
+                    } else {
+                        sharedPrefs.getBoolean("MARKDOWN_ENABLED", true)
+                    }
+                    val parsedBody = remember(note.body, bodyColor, isMarkdownEnabled) {
+                        if (isMarkdownEnabled) {
+                            parseMarkdownForPreview(note.body, bodyColor)
+                        } else {
+                            AnnotatedString(note.body)
+                        }
                     }
                     Text(
                         text = parsedBody,

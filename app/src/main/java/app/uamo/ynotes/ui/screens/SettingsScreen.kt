@@ -66,6 +66,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("yNotesPrefs", Context.MODE_PRIVATE) }
     var isWidgetsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("WIDGETS_ENABLED", true)) }
+    var isMarkdownEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("MARKDOWN_ENABLED", true)) }
     val isSoundEnabled by SoundManager.isSoundEnabled.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -532,6 +533,54 @@ fun SettingsScreen(
                                     coroutineScope.launch(Dispatchers.IO) {
                                         YNotesWidget().updateAll(context)
                                     }
+                                }
+                            )
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp))
+
+                        // Markdown switch
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val newState = !isMarkdownEnabled
+                                    isMarkdownEnabled = newState
+                                    sharedPrefs.edit().putBoolean("MARKDOWN_ENABLED", newState).apply()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Code,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Formato Markdown",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    if (isMarkdownEnabled) "Activado por defecto" else "Desactivado (actívalo por nota en ⋮)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = isMarkdownEnabled,
+                                onCheckedChange = { enabled ->
+                                    isMarkdownEnabled = enabled
+                                    sharedPrefs.edit().putBoolean("MARKDOWN_ENABLED", enabled).apply()
                                 }
                             )
                         }
