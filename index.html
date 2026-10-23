@@ -17,7 +17,7 @@
   <meta property="og:url" content="https://uamo11.github.io/ynotes/">
   <meta property="og:title" content="yNotes — Una App de Notas Simple, Rápida, Confiable y Cómoda!">
   <meta property="og:description" content="Tu espacio diario para escribir ideas, listas y notas en Markdown sin distracciones, con widgets y Bóveda Segura cifrada.">
-  <meta property="og:image" content="assets/screenshots/ynotes-main-dashboard.webp">
+  <meta property="og:image" content="assets/screenshots/v1020-01-dashboard-amoled.webp?v=1.0.20_hd">
   <meta property="og:locale" content="es_ES">
   <meta property="og:site_name" content="yNotes">
 
@@ -25,7 +25,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="yNotes — Una App de Notas Simple, Rápida, Confiable y Cómoda!">
   <meta name="twitter:description" content="Una app de notas simple, rápida, confiable y cómoda. Escribe en Markdown con calma y seguridad.">
-  <meta name="twitter:image" content="assets/screenshots/ynotes-main-dashboard.webp">
+  <meta name="twitter:image" content="assets/screenshots/v1020-01-dashboard-amoled.webp?v=1.0.20_hd">
 
   <!-- Favicons Locales (Cero peticiones externas) -->
   <link rel="icon" href="favicon.ico" sizes="any">
@@ -47,7 +47,7 @@
   </script>
 
   <!-- Estilos Locales Autónomos -->
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=1.0.20_hd">
 </head>
 <body>
 
@@ -202,34 +202,49 @@
           </div>
         </div>
 
-        <!-- Columna del Mockup Visual -->
+        <!-- Columna del Mockup Visual 3D Giratorio -->
         <div class="hero-visual reveal">
-          <div class="phone-mockup-wrapper">
+          <div class="hero-rotator-container" id="heroRotator">
             
-            <!-- Insignia Flotante Bóveda -->
+            <!-- Insignia Flotante Dinámica -->
             <div class="floating-badge badge-vault">
-              <div class="badge-icon-box red">
+              <div class="badge-icon-box red" id="heroBadgeIcon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
               </div>
               <div class="badge-text">
-                <strong>Bóveda Activa</strong>
-                <span>Cifrada por Hardware</span>
+                <strong id="heroBadgeTitle">Edición AMOLED</strong>
+                <span id="heroBadgeSub">v1.0.20 Oficial</span>
               </div>
             </div>
 
-            <!-- Marco de Teléfono Móvil -->
-            <div class="phone-frame">
-              <div class="phone-camera" aria-hidden="true"></div>
-              <div class="phone-screen">
-                <picture>
-                  <source srcset="assets/screenshots/ynotes-main-dashboard.webp" type="image/webp">
-                  <img src="assets/screenshots/ynotes-main-dashboard.webp" alt="Captura de pantalla de la interfaz principal de yNotes" width="460" height="1024" loading="eager">
-                </picture>
+            <!-- Botón Girar Izquierda -->
+            <button class="hero-rotate-btn hero-rotate-prev" id="heroPrevBtn" aria-label="Girar a captura anterior" title="Captura anterior">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+
+            <!-- Marco de Teléfono 3D Giratorio -->
+            <div class="hero-phone-3d-wrap" id="heroPhoneWrap">
+              <div class="phone-frame hero-phone-3d" id="heroPhoneFrame">
+                <div class="phone-camera" aria-hidden="true"></div>
+                
+                <button class="phone-zoom-hint" id="heroZoomBtn" aria-label="Ver captura en HD" title="Toca para ver en HD">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                  <span>Ver HD</span>
+                </button>
+
+                <div class="phone-screen">
+                  <img id="heroPhoneImg" src="assets/screenshots/v1020-01-dashboard-amoled.webp?v=1.0.20_hd" alt="yNotes v1.0.20 Pantalla Principal AMOLED" width="460" height="1024" loading="eager">
+                </div>
               </div>
             </div>
+
+            <!-- Botón Girar Derecha -->
+            <button class="hero-rotate-btn hero-rotate-next" id="heroNextBtn" aria-label="Girar a siguiente captura" title="Siguiente captura">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
 
             <!-- Insignia Flotante Offline -->
             <div class="floating-badge badge-offline">
@@ -248,6 +263,22 @@
                 <strong>100% Offline</strong>
                 <span>Cero Fugas de Datos</span>
               </div>
+            </div>
+
+            <!-- Controles de Giro y Paginación 3D -->
+            <div class="hero-rotate-controls">
+              <div class="hero-rotate-tag" id="heroScreenLabel">
+                <span class="hero-dot-pulse"></span>
+                <span id="heroScreenTitle">1/5 · Principal AMOLED</span>
+              </div>
+              <div class="hero-dots" id="heroDots" role="tablist" aria-label="Girar capturas de pantalla">
+                <button class="hero-dot active" role="tab" aria-selected="true" data-index="0" aria-label="Captura 1"></button>
+                <button class="hero-dot" role="tab" aria-selected="false" data-index="1" aria-label="Captura 2"></button>
+                <button class="hero-dot" role="tab" aria-selected="false" data-index="2" aria-label="Captura 3"></button>
+                <button class="hero-dot" role="tab" aria-selected="false" data-index="3" aria-label="Captura 4"></button>
+                <button class="hero-dot" role="tab" aria-selected="false" data-index="4" aria-label="Captura 5"></button>
+              </div>
+              <span class="hero-swipe-hint">↔ Desliza o gira para ver más</span>
             </div>
 
           </div>
@@ -596,7 +627,7 @@
             <div class="phone-frame">
               <div class="phone-camera" aria-hidden="true"></div>
               <div class="phone-screen">
-                <img id="galleryImg" src="assets/screenshots/ynotes-main-dashboard.webp" alt="Pantalla de inicio de yNotes" width="460" height="1024" loading="lazy">
+                <img id="galleryImg" src="assets/screenshots/v1020-01-dashboard-amoled.webp?v=1.0.20_hd" alt="Pantalla de inicio de yNotes" width="460" height="1024" loading="lazy">
               </div>
             </div>
           </div>
@@ -631,35 +662,35 @@
         <div class="gallery-grid-strip reveal" id="galleryThumbs">
           <div class="thumb-card active">
             <div class="thumb-img-wrap">
-              <img src="assets/screenshots/ynotes-main-dashboard.webp" alt="Miniatura Pantalla Principal AMOLED" loading="lazy">
+              <img src="assets/screenshots/v1020-01-dashboard-amoled.webp?v=1.0.20_hd" alt="Miniatura Pantalla Principal AMOLED" loading="lazy">
             </div>
             <span>Principal AMOLED</span>
           </div>
 
           <div class="thumb-card">
             <div class="thumb-img-wrap">
-              <img src="assets/screenshots/ynotes-secure-vault.webp" alt="Miniatura Bóveda Segura AES-256" loading="lazy">
+              <img src="assets/screenshots/v1020-02-vault-safezone.webp?v=1.0.20_hd" alt="Miniatura Bóveda Segura AES-256" loading="lazy">
             </div>
             <span>Bóveda AES-256</span>
           </div>
 
           <div class="thumb-card">
             <div class="thumb-img-wrap">
-              <img src="assets/screenshots/ynotes-theme-google.webp" alt="Miniatura Tema Google Notes" loading="lazy">
+              <img src="assets/screenshots/v1020-03-theme-google.webp?v=1.0.20_hd" alt="Miniatura Tema Google Notes" loading="lazy">
             </div>
             <span>Google Notes</span>
           </div>
 
           <div class="thumb-card">
             <div class="thumb-img-wrap">
-              <img src="assets/screenshots/ynotes-safezone-settings.webp" alt="Miniatura Seguridad Modo Reversa" loading="lazy">
+              <img src="assets/screenshots/v1020-04-safezone-settings.webp?v=1.0.20_hd" alt="Miniatura Seguridad Modo Reversa" loading="lazy">
             </div>
             <span>Modo Reversa</span>
           </div>
 
           <div class="thumb-card">
             <div class="thumb-img-wrap">
-              <img src="assets/screenshots/ynotes-settings-security.webp" alt="Miniatura Ajustes Generales v1.0.20" loading="lazy">
+              <img src="assets/screenshots/v1020-05-settings-v1020.webp?v=1.0.20_hd" alt="Miniatura Ajustes Generales v1.0.20" loading="lazy">
             </div>
             <span>Ajustes v1.0.20</span>
           </div>
@@ -966,7 +997,27 @@
     </div>
   </footer>
 
+  <!-- Modal Lightbox HD Pantalla Completa -->
+  <div class="hd-lightbox" id="hdLightbox" aria-hidden="true">
+    <div class="lightbox-overlay" id="lightboxOverlay"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close-btn" id="lightboxCloseBtn" aria-label="Cerrar vista HD">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="lightbox-header">
+        <h4 id="lightboxTitle">Pantalla Principal AMOLED (HD)</h4>
+        <a id="lightboxDownload" href="#" target="_blank" download class="lightbox-action-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="20" x2="12" y2="3"></line></svg>
+          <span>Abrir Original HD</span>
+        </a>
+      </div>
+      <div class="lightbox-img-wrap">
+        <img id="lightboxImg" src="" alt="Captura HD ampliada">
+      </div>
+    </div>
+  </div>
+
   <!-- Script Principal Autónomo -->
-  <script src="js/main.js"></script>
+  <script src="js/main.js?v=1.0.20_hd"></script>
 </body>
 </html>
