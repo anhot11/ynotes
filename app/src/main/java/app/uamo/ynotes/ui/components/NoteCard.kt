@@ -43,6 +43,7 @@ import app.uamo.ynotes.ui.theme.*
 import app.uamo.ynotes.utils.MediaManager
 import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.utils.parseMarkdown
+import app.uamo.ynotes.utils.parseMarkdownForPreview
 import app.uamo.ynotes.utils.sharedElementTransition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
