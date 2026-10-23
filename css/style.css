@@ -587,8 +587,8 @@ code, kbd, pre {
 .phone-mockup-wrapper {
   position: relative;
   width: 100%;
-  max-width: 260px;
-  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.15));
+  max-width: 295px;
+  filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.25));
   perspective: 1000px;
 }
 
@@ -631,7 +631,10 @@ code, kbd, pre {
   width: 100%;
   height: auto;
   display: block;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* Floating Badges en el Mockup */
@@ -991,7 +994,7 @@ code, kbd, pre {
 }
 
 .gallery-mockup {
-  max-width: 230px;
+  max-width: 280px;
   margin: 0 auto;
 }
 
@@ -1072,7 +1075,7 @@ code, kbd, pre {
   object-fit: cover;
   object-position: top;
   display: block;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
 }
 
 .thumb-card span {
@@ -1525,11 +1528,11 @@ html.js-loaded .reveal.revealed {
   }
 
   .phone-mockup-wrapper {
-    max-width: 225px;
+    max-width: 260px;
   }
 
   .gallery-mockup {
-    max-width: 200px;
+    max-width: 240px;
   }
 
   .gallery-grid-strip {

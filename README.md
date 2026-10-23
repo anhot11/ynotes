@@ -9,7 +9,7 @@
 
   <p>
     <a href="https://github.com/uamo11/ynotes/blob/main/LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-2e5d48.svg?style=flat-square" alt="Licencia MIT" /></a>
-    <a href="https://github.com/uamo11/ynotes/releases/latest"><img src="https://img.shields.io/badge/Versi%C3%B3n-v1.0.13-4a8d6e.svg?style=flat-square" alt="Versión v1.0.13" /></a>
+    <a href="https://github.com/uamo11/ynotes/releases/latest"><img src="https://img.shields.io/badge/Versi%C3%B3n-v1.0.20-4a8d6e.svg?style=flat-square" alt="Versión v1.0.20" /></a>
     <img src="https://img.shields.io/badge/Android-8.0%2B-d97706.svg?style=flat-square" alt="Android 8.0+" />
     <img src="https://img.shields.io/badge/Notas-Markdown%20%2B%20Widgets-2d5a45.svg?style=flat-square" alt="Markdown y Widgets" />
     <img src="https://img.shields.io/badge/B%C3%B3veda-AES--256--GCM-c53030.svg?style=flat-square" alt="AES-256-GCM" />

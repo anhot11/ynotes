@@ -144,67 +144,67 @@ function initScrollReveal() {
 const galleryScreens = [
   {
     id: 'dashboard',
-    title: 'Pantalla Principal Limpia y Elegante',
-    subtitle: 'Tus notas organizadas con máxima legibilidad y acceso veloz.',
+    title: 'Pantalla Principal AMOLED Glass (v1.0.20)',
+    subtitle: 'Notas organizadas con máxima legibilidad, estética AMOLED pura y alto contraste.',
     src: 'assets/screenshots/ynotes-main-dashboard.webp',
-    alt: 'Pantalla principal de yNotes con notas guardadas, buscador y botón de nueva nota',
+    alt: 'Pantalla principal de yNotes con notas guardadas, buscador y botón flotante degradado',
     bullets: [
-      'Saludo dinámico según la hora del día y contador de notas guardadas.',
-      'Buscador instantáneo por título, contenido o palabra clave con filtros avanzados.',
-      'Tarjetas con distribución inteligente tipo masonry y soporte de previsualización oculta.',
-      'Botón flotante con degradado suave para redactar una nueva nota al instante.'
-    ]
-  },
-  {
-    id: 'editor',
-    title: 'Editor Markdown con Formato en Tiempo Real',
-    subtitle: 'Escribe sin restricciones y dale estructura a tus ideas en segundos.',
-    src: 'assets/screenshots/ynotes-markdown-editor.webp',
-    alt: 'Editor de notas con formato Markdown, barra de herramientas y contador de palabras',
-    bullets: [
-      'Barra inferior de herramientas rápidas: Negrita, Cursiva, Encabezados (H1, H2, H3), Citas y Código.',
-      'Soporte completo de sintaxis Markdown estándar y listas de tareas con casillas de verificación.',
-      'Contador de palabras y caracteres en tiempo real para un control preciso de tus textos.',
-      'Guardado automático instantáneo y opción de anclar notas importantes en la parte superior.'
+      'Diseño AMOLED puro con tarjetas tipo masonry y colores vivos personalizados.',
+      'Buscador instantáneo por título, contenido o palabra clave con orden dinámico.',
+      'Botón flotante con degradado suave para crear notas en un toque.',
+      'Soporte de previsualización limpia con sintaxis Markdown oculta.'
     ]
   },
   {
     id: 'vault',
-    title: 'Bóveda Segura con Cifrado AES-256-GCM',
-    subtitle: 'El rincón impenetrable para tus notas más íntimas y secretos.',
+    title: 'Zona Segura & Bóveda AES-256',
+    subtitle: 'El rincón impenetrable para tus notas más íntimas y aplicaciones confidenciales.',
     src: 'assets/screenshots/ynotes-secure-vault.webp',
     alt: 'Bóveda Segura de yNotes con cifrado AES-256-GCM y aplicaciones ocultas',
     bullets: [
-      'Cifrado simétrico AES-256-GCM de alta seguridad con protección activa contra volcado de memoria.',
-      'Sección de "Aplicaciones Ocultas" para camuflar accesos a apps confidenciales.',
-      'Distinción visual con identificador de clave criptográfica y botón dedicado "Nuevo Secreto".',
-      'Aislamiento total: nada de lo que entra en la bóveda sale sin tu permiso.'
+      'Cifrado simétrico AES-256-GCM de alta seguridad con protección activa.',
+      'Lanzador de aplicaciones confidenciales camufladas con carga instantánea.',
+      'Botón dedicado "Nuevo secreto" con aislamiento criptográfico total.',
+      'Copias de seguridad cifradas con clave zero-knowledge para máxima privacidad.'
     ]
   },
   {
-    id: 'options',
-    title: 'Personalización Completa y Modo Enfoque',
-    subtitle: 'Adapta cada nota a su contexto y concéntrate sin distracciones.',
-    src: 'assets/screenshots/ynotes-note-options.webp',
-    alt: 'Hoja de opciones de nota en yNotes con selector de color, modo enfoque y widgets',
+    id: 'theme',
+    title: 'Temas & Apariencia (Google Notes / Samsung)',
+    subtitle: 'Adapta la interfaz visual a tu estilo con selector de diseño en tiempo real.',
+    src: 'assets/screenshots/ynotes-theme-google.webp',
+    alt: 'Pantalla principal con el estilo visual Google Notes y botón flotante redondeado',
     bullets: [
-      'Paleta de colores distintivos por nota para clasificar visualmente tus proyectos.',
-      'Modo Enfoque a pantalla completa: oculta barras e interfaces para escribir en calma total.',
-      'Ocultar previsualización: protege el texto de miradas indiscretas en la lista general.',
-      'Fijar en Widget de pantalla de inicio para tener notas esenciales siempre a mano.'
+      'Estilo Google Notes con botón flotante clásico y navegación simplificada.',
+      'Estilo Samsung ergonómico diseñado para uso cómodo a una sola mano.',
+      'Estilo AMOLED Moderno por defecto con negros absolutos para ahorro de batería.',
+      'Cambio instantáneo desde los ajustes sin tener que reiniciar la app.'
+    ]
+  },
+  {
+    id: 'safezone',
+    title: 'Seguridad Avanzada & Modo Reversa',
+    subtitle: 'Control total de autenticación biométrica y señuelos contra miradas curiosas.',
+    src: 'assets/screenshots/ynotes-safezone-settings.webp',
+    alt: 'Ajustes de Zona Segura con bloqueo de huella y opción de Modo Reversa',
+    bullets: [
+      'Bloqueo por huella dactilar respaldado por el hardware seguro de Android.',
+      'Modo Reversa: transforma la vista principal en una lista señuelo si abres bajo coacción.',
+      'Sonidos de la app configurables con síntesis SoundPool de baja latencia.',
+      'Integración directa con formato Markdown y activación por nota.'
     ]
   },
   {
     id: 'settings',
-    title: 'Ajustes de Zona Segura y Estilos de Interfaz',
-    subtitle: 'Control total de la privacidad, sensaciones y apariencia del sistema.',
+    title: 'Ajustes Generales v1.0.20 (AMOLED Edition)',
+    subtitle: 'Control total de la privacidad, sensaciones y personalización del sistema.',
     src: 'assets/screenshots/ynotes-settings-security.webp',
-    alt: 'Ajustes de Zona Segura con selección de temas visuales, huella dactilar y camuflaje',
+    alt: 'Pantalla de ajustes generales mostrando versión 1.0.20 AMOLED Edition y selector de apariencia',
     bullets: [
-      'Estilos de interfaz intercambiables: Material You Modern (por defecto), Google y Samsung.',
-      'Feedback sonoro sutil al interactuar, borrar o acceder a la zona protegida.',
-      'Bloqueo biométrico por huella dactilar respaldado por el hardware de Android.',
-      'Accesos directos con camuflaje de app (App Hiding) para desviar miradas curiosas.'
+      'Versión oficial v1.0.20 (AMOLED Edition) con optimización de memoria RAM.',
+      'Selector de Apariencia con 3 estilos visuales: Actual, Google y Samsung.',
+      'Gestión de libros, categorías y notas fijadas en pantalla de inicio.',
+      'Widgets interactivos para pantalla principal con soporte de notas públicas o secretas.'
     ]
   }
 ];
