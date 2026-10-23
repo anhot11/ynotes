@@ -284,9 +284,10 @@ fun SafeZoneScreen(
                         Box(modifier = Modifier.weight(1f)) {
                             if (searchQuery.isEmpty()) {
                                 Text(
-                                    text = "Buscar en bóveda",
+                                    text = "Buscar...",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    maxLines = 1
                                 )
                             }
                             BasicTextField(
@@ -307,7 +308,7 @@ fun SafeZoneScreen(
                                     SoundManager.playTap()
                                     onSearchQueryChange("")
                                 },
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(38.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Close,
@@ -320,21 +321,28 @@ fun SafeZoneScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
+                val vaultTopIconSize = if (isBooksEnabled) 36.dp else 40.dp
                 Surface(
                     modifier = Modifier.height(52.dp),
                     shape = RoundedCornerShape(50.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 0.dp
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // Sort button
                         Box {
-                            IconButton(onClick = {
-                                SoundManager.playTap()
-                                showSortMenu = true
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    SoundManager.playTap()
+                                    showSortMenu = true
+                                },
+                                modifier = Modifier.size(vaultTopIconSize)
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = "Ordenar",
@@ -382,12 +390,15 @@ fun SafeZoneScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = {
-                            runSingleNav {
-                                SoundManager.playTap()
-                                onTrashClick()
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onTrashClick()
+                                }
+                            },
+                            modifier = Modifier.size(vaultTopIconSize)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Papelera",
@@ -395,12 +406,15 @@ fun SafeZoneScreen(
                             )
                         }
                         if (isBooksEnabled) {
-                            IconButton(onClick = {
-                                runSingleNav {
-                                    SoundManager.playTap()
-                                    onBooksClick()
-                                }
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    runSingleNav {
+                                        SoundManager.playTap()
+                                        onBooksClick()
+                                    }
+                                },
+                                modifier = Modifier.size(vaultTopIconSize)
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = "Libros",
@@ -408,24 +422,30 @@ fun SafeZoneScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = {
-                            runSingleNav {
-                                SoundManager.playTap()
-                                onSettingsClick()
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onSettingsClick()
+                                }
+                            },
+                            modifier = Modifier.size(vaultTopIconSize)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Configuración",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = {
-                            runSingleNav {
-                                SoundManager.playTap()
-                                onDeactivateSafeZone()
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onDeactivateSafeZone()
+                                }
+                            },
+                            modifier = Modifier.size(vaultTopIconSize)
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = "Cerrar Zona Segura",

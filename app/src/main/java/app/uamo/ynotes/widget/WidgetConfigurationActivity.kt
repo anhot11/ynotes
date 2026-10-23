@@ -175,7 +175,7 @@ fun WidgetConfigurationContent(
         },
         bottomBar = {
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 tonalElevation = 4.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -245,11 +245,11 @@ fun WidgetConfigurationContent(
                     },
                     shape = RoundedCornerShape(16.dp),
                     color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            else MaterialTheme.colorScheme.surfaceVariant,
                     border = androidx.compose.foundation.BorderStroke(
                         width = if (isSelected) 1.5.dp else 1.dp,
                         color = if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                                else MaterialTheme.colorScheme.outline
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -307,7 +307,7 @@ fun WidgetConfigurationContent(
                     item {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Text(
@@ -371,7 +371,7 @@ fun WidgetConfigurationContent(
                     item {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Text(
@@ -452,7 +452,7 @@ fun WidgetConfigurationContent(
                         Surface(
                             onClick = { selectedTheme = theme },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.weight(1f)
                         ) {
                             Column(

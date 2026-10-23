@@ -234,7 +234,11 @@ fun HomeScreen(
             ) {
                 var isFabPressed by remember { mutableStateOf(false) }
                 val fabScale by animateFloatAsState(
-                    targetValue = if (isFabPressed) 0.92f else 1f,
+                    targetValue = when {
+                        isFabPressed -> 0.90f
+                        !isFabExpanded -> 0.92f
+                        else -> 1f
+                    },
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
                         stiffness = Spring.StiffnessLow
@@ -250,6 +254,7 @@ fun HomeScreen(
 
                 Box(
                     modifier = Modifier
+                        .size(56.dp)
                         .scale(fabScale)
                         .clip(fabShape)
                         .then(
@@ -277,32 +282,14 @@ fun HomeScreen(
                                     }
                                 }
                             )
-                        }
-                        .padding(horizontal = if (isFabExpanded) 20.dp else 16.dp, vertical = 16.dp),
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Añadir Nota",
-                            tint = if (currentTheme == AppThemeType.AMOLED) Color.White else MaterialTheme.colorScheme.onPrimary
-                        )
-                        AnimatedVisibility(
-                            visible = isFabExpanded,
-                            enter = expandHorizontally() + fadeIn(),
-                            exit = shrinkHorizontally() + fadeOut()
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "Nueva nota",
-                                    color = if (currentTheme == AppThemeType.AMOLED) Color.White else MaterialTheme.colorScheme.onPrimary,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Añadir Nota",
+                        tint = if (currentTheme == AppThemeType.AMOLED) Color.White else MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }
@@ -359,7 +346,8 @@ fun HomeScreen(
                                 Text(
                                     text = "Buscar notas",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    maxLines = 1
                                 )
                             }
                             BasicTextField(
@@ -380,7 +368,7 @@ fun HomeScreen(
                                     SoundManager.playTap()
                                     onSearchQueryChange("")
                                 },
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Close,
@@ -396,20 +384,27 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 // Right Pill: Action Buttons
+                val topIconSize = if (isBooksEnabled) 40.dp else 46.dp
                 Surface(
                     modifier = Modifier.height(52.dp),
                     shape = RoundedCornerShape(50.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 0.dp
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = if (isBooksEnabled) 4.dp else 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // 1. Sort & Categories Button
                         Box {
                             val isFilterOrSortActive = sortOrder != SortOrder.DATE_MODIFIED_DESC || selectedFilter != HomeFilter.ALL
-                            IconButton(onClick = {
-                                SoundManager.playTap()
-                                showSortAndFilterMenu = true
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    SoundManager.playTap()
+                                    showSortAndFilterMenu = true
+                                },
+                                modifier = Modifier.size(topIconSize)
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = "Ordenar y Categorías",
@@ -496,12 +491,15 @@ fun HomeScreen(
                         }
 
                         // 2. Trash Button (solid Delete icon matching v1.0.3 screenshot)
-                        IconButton(onClick = {
-                            runSingleNav {
-                                SoundManager.playTap()
-                                onTrashClick()
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onTrashClick()
+                                }
+                            },
+                            modifier = Modifier.size(topIconSize)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Papelera",
@@ -511,12 +509,15 @@ fun HomeScreen(
 
                         // 3. Books Button (when enabled in Settings, directly opens BooksScreen)
                         if (isBooksEnabled) {
-                            IconButton(onClick = {
-                                runSingleNav {
-                                    SoundManager.playTap()
-                                    onBooksClick()
-                                }
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    runSingleNav {
+                                        SoundManager.playTap()
+                                        onBooksClick()
+                                    }
+                                },
+                                modifier = Modifier.size(topIconSize)
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = "Libros",
@@ -528,7 +529,7 @@ fun HomeScreen(
                         // 4. Settings Button (with Mode 2 SafeZone long-press)
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(topIconSize)
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onTap = {
