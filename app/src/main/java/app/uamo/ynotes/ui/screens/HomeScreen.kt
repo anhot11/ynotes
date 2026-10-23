@@ -1,12 +1,11 @@
 package app.uamo.ynotes.ui.screens
 
+import android.os.SystemClock
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,16 +33,18 @@ import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
-import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
+import app.uamo.ynotes.ui.theme.AppThemeType
 import app.uamo.ynotes.ui.theme.AuroraPrimary
+import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.utils.SoundManager
+import kotlinx.coroutines.launch
 
-enum class HomeFilter(val label: String, val icon: String) {
-    ALL("Todas", "✨"),
-    PINNED("Fijadas", "📌"),
-    WITH_MEDIA("Con fotos", "📷"),
-    WIDGET("En Widget", "⏱️")
+enum class HomeFilter(val label: String) {
+    ALL("Todas"),
+    PINNED("Fijadas"),
+    WITH_MEDIA("Con fotos"),
+    WIDGET("En Widget")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,19 +78,31 @@ fun HomeScreen(
     val isFabExpanded by remember { derivedStateOf { gridState.firstVisibleItemIndex == 0 } }
     var longPressedNote by remember { mutableStateOf<NoteEntity?>(null) }
 
-    var showSortMenu by remember { mutableStateOf(false) }
-    var showCategoryMenu by remember { mutableStateOf(false) }
+    var showSortAndFilterMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
-    var selectedBookFilterId by remember { mutableStateOf<String?>(null) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
+    val currentTheme = LocalAppTheme.current
 
-    val booksMap = remember(books) {
-        books.associate { it.id to it.name }
+    // Single-click debounce timestamp for all navigation actions from HomeScreen
+    var lastNavClickTime by remember { mutableLongStateOf(0L) }
+    fun runSingleNav(action: () -> Unit) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavClickTime > 400L) {
+            lastNavClickTime = now
+            action()
+        }
     }
 
+    val currentSafeZoneTriggerMode by rememberUpdatedState(safeZoneTriggerMode)
+    val currentIsBiometricEnabled by rememberUpdatedState(isBiometricEnabled)
+    val currentOnRequestSafeZone by rememberUpdatedState(onRequestSafeZone)
+    val currentOnRequestSafeZoneBiometric by rememberUpdatedState(onRequestSafeZoneBiometric)
+    val currentOnAddNote by rememberUpdatedState(onAddNote)
+    val currentOnSettingsClick by rememberUpdatedState(onSettingsClick)
+
     // SafeZone Mode 0: Password entered in the search bar
-    LaunchedEffect(searchQuery) {
+    LaunchedEffect(searchQuery, safeZoneTriggerMode, safeZonePassword, isBiometricEnabled) {
         if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery.trim() == safeZonePassword.trim()) {
             onSearchQueryChange("")
             if (isBiometricEnabled) onRequestSafeZoneBiometric()
@@ -98,32 +110,23 @@ fun HomeScreen(
         }
     }
 
-    // Filter notes by category chip or book filter
-    val filteredByChip = remember(notes, selectedFilter, selectedBookFilterId) {
-        if (selectedBookFilterId != null) {
-            notes.filter { it.bookId == selectedBookFilterId }
-        } else {
-            when (selectedFilter) {
-                HomeFilter.ALL -> notes
-                HomeFilter.PINNED -> notes.filter { it.isPinned }
-                HomeFilter.WITH_MEDIA -> notes.filter { it.mediaFiles.isNotBlank() }
-                HomeFilter.WIDGET -> notes.filter { it.isWidgetSpecial }
-            }
+    // Filter notes by category
+    val filteredNotes = remember(notes, selectedFilter) {
+        when (selectedFilter) {
+            HomeFilter.ALL -> notes
+            HomeFilter.PINNED -> notes.filter { it.isPinned }
+            HomeFilter.WITH_MEDIA -> notes.filter { it.mediaFiles.isNotBlank() }
+            HomeFilter.WIDGET -> notes.filter { it.isWidgetSpecial }
         }
     }
 
-    // Pinned notes float to the top naturally without disruptive full-line banners
-    val displayNotes = remember(filteredByChip) {
-        filteredByChip.sortedWith(
-            compareByDescending<NoteEntity> { it.isPinned }
-        )
-    }
+    val pinnedNotes = remember(filteredNotes) { filteredNotes.filter { it.isPinned } }
+    val unpinnedNotes = remember(filteredNotes) { filteredNotes.filter { !it.isPinned } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            // Contextual bottom action bar when notes are selected
             AnimatedVisibility(
                 visible = isSelectionMode,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -162,14 +165,14 @@ fun HomeScreen(
                             TextButton(
                                 onClick = {
                                     SoundManager.playTap()
-                                    selectedNoteIds = if (selectedNoteIds.size == displayNotes.size) {
+                                    selectedNoteIds = if (selectedNoteIds.size == filteredNotes.size) {
                                         emptySet()
                                     } else {
-                                        displayNotes.map { it.id }.toSet()
+                                        filteredNotes.map { it.id }.toSet()
                                     }
                                 }
                             ) {
-                                Text(if (selectedNoteIds.size == displayNotes.size) "Deseleccionar" else "Todas")
+                                Text(if (selectedNoteIds.size == filteredNotes.size) "Deseleccionar" else "Todas")
                             }
 
                             if (onSetNotesWidgetSpecial != null) {
@@ -231,7 +234,7 @@ fun HomeScreen(
             ) {
                 var isFabPressed by remember { mutableStateOf(false) }
                 val fabScale by animateFloatAsState(
-                    targetValue = if (isFabPressed) 0.94f else 1f,
+                    targetValue = if (isFabPressed) 0.92f else 1f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
                         stiffness = Spring.StiffnessLow
@@ -239,13 +242,20 @@ fun HomeScreen(
                     label = "fabScale"
                 )
 
+                val fabShape = when (currentTheme) {
+                    AppThemeType.GOOGLE -> RoundedCornerShape(16.dp)
+                    AppThemeType.SAMSUNG -> CircleShape
+                    else -> RoundedCornerShape(20.dp)
+                }
+
                 Box(
                     modifier = Modifier
-                        .padding(end = 4.dp, bottom = 4.dp)
                         .scale(fabScale)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(AuroraPrimary)
-                        .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                        .clip(fabShape)
+                        .then(
+                            if (currentTheme == AppThemeType.AMOLED) Modifier.background(AuroraPrimary)
+                            else Modifier.background(MaterialTheme.colorScheme.primary)
+                        )
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onPress = {
@@ -254,34 +264,40 @@ fun HomeScreen(
                                     isFabPressed = false
                                 },
                                 onTap = {
-                                    SoundManager.playTap()
-                                    onAddNote()
+                                    runSingleNav {
+                                        SoundManager.playTap()
+                                        currentOnAddNote()
+                                    }
                                 },
                                 onLongPress = {
-                                    if (safeZoneTriggerMode == 3) {
+                                    if (currentSafeZoneTriggerMode == 3) {
                                         SoundManager.playTap()
-                                        if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                        else onRequestSafeZone()
+                                        if (currentIsBiometricEnabled) currentOnRequestSafeZoneBiometric()
+                                        else currentOnRequestSafeZone()
                                     }
                                 }
                             )
                         }
-                        .padding(horizontal = if (isFabExpanded) 22.dp else 16.dp, vertical = 15.dp),
+                        .padding(horizontal = if (isFabExpanded) 20.dp else 16.dp, vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, "Añadir Nota", tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Añadir Nota",
+                            tint = if (currentTheme == AppThemeType.AMOLED) Color.White else MaterialTheme.colorScheme.onPrimary
+                        )
                         AnimatedVisibility(
                             visible = isFabExpanded,
                             enter = expandHorizontally() + fadeIn(),
                             exit = shrinkHorizontally() + fadeOut()
                         ) {
-                            Row {
-                                Spacer(modifier = Modifier.width(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     "Nueva nota",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                                    color = if (currentTheme == AppThemeType.AMOLED) Color.White else MaterialTheme.colorScheme.onPrimary,
+                                    style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -296,19 +312,19 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // ── TOP BAR: Sleek, Minimalist Dual Pills ──
+            // ── TOP BAR: Minimalist Dual Pills (v1.0.3 layout) ──
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Pill: Search Input
+                // Left Pill: Search Bar
                 Surface(
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp),
-                    shape = RoundedCornerShape(50.dp),
+                    shape = if (currentTheme == AppThemeType.GOOGLE) RoundedCornerShape(16.dp) else RoundedCornerShape(50.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 0.dp
                 ) {
@@ -320,18 +336,18 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Buscar notas",
+                            contentDescription = "Buscar",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
-                                .size(24.dp)
+                                .size(20.dp)
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onTap = { SoundManager.playTap() },
                                         onLongPress = {
-                                            SoundManager.playTap()
-                                            if (safeZoneTriggerMode == 1) {
-                                                if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                                else onRequestSafeZone()
+                                            if (currentSafeZoneTriggerMode == 1) {
+                                                SoundManager.playTap()
+                                                if (currentIsBiometricEnabled) currentOnRequestSafeZoneBiometric()
+                                                else currentOnRequestSafeZone()
                                             }
                                         }
                                     )
@@ -351,7 +367,7 @@ fun HomeScreen(
                                 onValueChange = onSearchQueryChange,
                                 textStyle = TextStyle(
                                     fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -364,11 +380,12 @@ fun HomeScreen(
                                     SoundManager.playTap()
                                     onSearchQueryChange("")
                                 },
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "Limpiar búsqueda",
+                                    modifier = Modifier.size(20.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -378,7 +395,7 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                // Right Pill: Action Controls (Sort, Categories, Trash, Settings)
+                // Right Pill: Action Buttons
                 Surface(
                     modifier = Modifier.height(52.dp),
                     shape = RoundedCornerShape(50.dp),
@@ -386,30 +403,68 @@ fun HomeScreen(
                     tonalElevation = 0.dp
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // 1. Sort Button
+                        // 1. Sort & Categories Button
                         Box {
+                            val isFilterOrSortActive = sortOrder != SortOrder.DATE_MODIFIED_DESC || selectedFilter != HomeFilter.ALL
                             IconButton(onClick = {
                                 SoundManager.playTap()
-                                showSortMenu = true
+                                showSortAndFilterMenu = true
                             }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Sort,
-                                    contentDescription = "Ordenar",
-                                    tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC)
+                                    contentDescription = "Ordenar y Categorías",
+                                    tint = if (isFilterOrSortActive)
                                         MaterialTheme.colorScheme.primary
                                     else
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             DropdownMenu(
-                                expanded = showSortMenu,
-                                onDismissRequest = { showSortMenu = false }
+                                expanded = showSortAndFilterMenu,
+                                onDismissRequest = { showSortAndFilterMenu = false }
                             ) {
+                                Text(
+                                    text = "Categorías",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                                HomeFilter.entries.forEach { filter ->
+                                    val isSelected = selectedFilter == filter
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = filter.label,
+                                                color = if (isSelected)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            selectedFilter = filter
+                                            showSortAndFilterMenu = false
+                                        },
+                                        leadingIcon = if (isSelected) ({
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }) else null
+                                    )
+                                }
+
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                                 Text(
                                     text = "Ordenar por",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                                 )
                                 SortOrder.entries.forEach { order ->
                                     DropdownMenuItem(
@@ -419,14 +474,13 @@ fun HomeScreen(
                                                 color = if (sortOrder == order)
                                                     MaterialTheme.colorScheme.primary
                                                 else
-                                                    MaterialTheme.colorScheme.onSurface,
-                                                fontWeight = if (sortOrder == order) FontWeight.Bold else FontWeight.Normal
+                                                    MaterialTheme.colorScheme.onSurface
                                             )
                                         },
                                         onClick = {
                                             SoundManager.playTap()
                                             onSortOrderChange(order)
-                                            showSortMenu = false
+                                            showSortAndFilterMenu = false
                                         },
                                         leadingIcon = if (sortOrder == order) ({
                                             Icon(
@@ -441,161 +495,34 @@ fun HomeScreen(
                             }
                         }
 
-                        // 2. Categories / Cuadernos Button
-                        Box {
-                            IconButton(onClick = {
-                                SoundManager.playTap()
-                                showCategoryMenu = true
-                            }) {
-                                Icon(
-                                    imageVector = if (selectedFilter != HomeFilter.ALL || selectedBookFilterId != null)
-                                        Icons.Default.FilterList
-                                    else
-                                        Icons.AutoMirrored.Filled.MenuBook,
-                                    contentDescription = "Categorías",
-                                    tint = if (selectedFilter != HomeFilter.ALL || selectedBookFilterId != null)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showCategoryMenu,
-                                onDismissRequest = { showCategoryMenu = false }
-                            ) {
-                                Text(
-                                    text = "Categorías",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                                )
-                                HomeFilter.entries.forEach { filter ->
-                                    val isSelected = selectedFilter == filter && selectedBookFilterId == null
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = "${filter.icon}  ${filter.label}",
-                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                                val count = when (filter) {
-                                                    HomeFilter.ALL -> notes.size
-                                                    HomeFilter.PINNED -> notes.count { it.isPinned }
-                                                    HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
-                                                    HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
-                                                }
-                                                Spacer(modifier = Modifier.width(16.dp))
-                                                Text(
-                                                    text = "$count",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        },
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            selectedFilter = filter
-                                            selectedBookFilterId = null
-                                            showCategoryMenu = false
-                                        },
-                                        leadingIcon = if (isSelected) ({
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }) else null
-                                    )
-                                }
-
-                                if (isBooksEnabled) {
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                    Text(
-                                        text = "Cuadernos",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                                    )
-                                    books.forEach { book ->
-                                        val isSelected = selectedBookFilterId == book.id
-                                        val count = notes.count { it.bookId == book.id }
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = "📖  ${book.name}",
-                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                    Spacer(modifier = Modifier.width(16.dp))
-                                                    Text(
-                                                        text = "$count",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                    )
-                                                }
-                                            },
-                                            onClick = {
-                                                SoundManager.playTap()
-                                                selectedBookFilterId = if (selectedBookFilterId == book.id) null else book.id
-                                                showCategoryMenu = false
-                                            },
-                                            leadingIcon = if (isSelected) ({
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }) else null
-                                        )
-                                    }
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Administrar cuadernos",
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                        },
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            showCategoryMenu = false
-                                            onBooksClick()
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Default.Settings,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // 3. Trash Button
+                        // 2. Trash Button (solid Delete icon matching v1.0.3 screenshot)
                         IconButton(onClick = {
-                            SoundManager.playTap()
-                            onTrashClick()
+                            runSingleNav {
+                                SoundManager.playTap()
+                                onTrashClick()
+                            }
                         }) {
                             Icon(
-                                imageVector = Icons.Default.DeleteOutline,
+                                imageVector = Icons.Default.Delete,
                                 contentDescription = "Papelera",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+
+                        // 3. Books Button (when enabled in Settings, directly opens BooksScreen)
+                        if (isBooksEnabled) {
+                            IconButton(onClick = {
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onBooksClick()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = "Libros",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         // 4. Settings Button (with Mode 2 SafeZone long-press)
@@ -605,14 +532,16 @@ fun HomeScreen(
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onTap = {
-                                            SoundManager.playTap()
-                                            onSettingsClick()
+                                            runSingleNav {
+                                                SoundManager.playTap()
+                                                currentOnSettingsClick()
+                                            }
                                         },
                                         onLongPress = {
-                                            SoundManager.playTap()
-                                            if (safeZoneTriggerMode == 2) {
-                                                if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                                else onRequestSafeZone()
+                                            if (currentSafeZoneTriggerMode == 2) {
+                                                SoundManager.playTap()
+                                                if (currentIsBiometricEnabled) currentOnRequestSafeZoneBiometric()
+                                                else currentOnRequestSafeZone()
                                             }
                                         }
                                     )
@@ -629,14 +558,10 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // ── MAIN NOTES STAGGERED GRID (2-Column "cuadro" layout) ──
-            if (displayNotes.isEmpty()) {
+            // ── MAIN NOTES STAGGERED GRID (v1.0.3 2-Column layout) ──
+            if (filteredNotes.isEmpty()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 32.dp),
+                    modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -644,17 +569,16 @@ fun HomeScreen(
                         imageVector = Icons.Outlined.Description,
                         contentDescription = "Sin notas",
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(80.dp)
                             .padding(bottom = 16.dp),
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f)
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
                     )
                     Text(
                         text = if (searchQuery.isNotBlank()) "Sin resultados para \"$searchQuery\""
-                        else if (selectedBookFilterId != null) "No hay notas en \"${booksMap[selectedBookFilterId] ?: "este cuaderno"}\""
                         else if (selectedFilter != HomeFilter.ALL) "No hay notas en ${selectedFilter.label}"
                         else "Todavía no hay notas. ¡Añade una!",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
                 }
             } else {
@@ -665,34 +589,78 @@ fun HomeScreen(
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 6.dp,
+                        top = 8.dp,
                         bottom = if (isSelectionMode) 96.dp else 88.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp
                 ) {
-                    items(displayNotes, key = { it.id }) { note ->
-                        val isSelected = selectedNoteIds.contains(note.id)
-                        NoteCard(
-                            note = note,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                } else {
-                                    onNoteClick(note)
-                                }
-                            },
-                            onLongPress = {
-                                if (isSelectionMode) {
-                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                } else {
-                                    longPressedNote = note
-                                }
-                            },
-                            isSelected = isSelected,
-                            isSelectionMode = isSelectionMode,
-                            bookName = note.bookId?.let { booksMap[it] }
-                        )
+                    if (pinnedNotes.isNotEmpty()) {
+                        item(span = StaggeredGridItemSpan.FullLine) {
+                            Text(
+                                "FIJADAS",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 8.dp)
+                            )
+                        }
+                        items(pinnedNotes, key = { it.id }) { note ->
+                            val isSelected = selectedNoteIds.contains(note.id)
+                            NoteCard(
+                                note = note,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        runSingleNav { onNoteClick(note) }
+                                    }
+                                },
+                                onLongPress = {
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        longPressedNote = note
+                                    }
+                                },
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode
+                            )
+                        }
+                    }
+
+                    if (unpinnedNotes.isNotEmpty()) {
+                        if (pinnedNotes.isNotEmpty()) {
+                            item(span = StaggeredGridItemSpan.FullLine) {
+                                Text(
+                                    "OTRAS",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 16.dp)
+                                )
+                            }
+                        }
+                        items(unpinnedNotes, key = { it.id }) { note ->
+                            val isSelected = selectedNoteIds.contains(note.id)
+                            NoteCard(
+                                note = note,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        runSingleNav { onNoteClick(note) }
+                                    }
+                                },
+                                onLongPress = {
+                                    if (isSelectionMode) {
+                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                    } else {
+                                        longPressedNote = note
+                                    }
+                                },
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode
+                            )
+                        }
                     }
                 }
             }

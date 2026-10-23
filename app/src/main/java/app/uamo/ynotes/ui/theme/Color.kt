@@ -3,40 +3,23 @@ package app.uamo.ynotes.ui.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// 2026 Core Palette - Warm, Alive & Editorial
-val PrimaryAccent = Color(0xFF5B45E0) // Warm Brand Indigo (Creative & Human)
-val PrimaryAccentDark = Color(0xFF816EF7) // Luminous Electric Lavender
-val SecondaryAccent = Color(0xFFE06345) // Warm Terracotta / Coral
-val SecondaryAccentDark = Color(0xFFF87171) // Luminous Soft Coral
-val TertiaryAccent = Color(0xFFF59E0B) // Solar Warm Amber
+// Core Palette (v1.0.3 AMOLED & Glass Edition)
+val PrimaryAccent = Color(0xFF8B5CF6) // Vibrant Violet
+val SecondaryAccent = Color(0xFF06B6D4) // Cyan
+val TertiaryAccent = Color(0xFFEC4899) // Pink
 
-// Warm Paper (Light) & Midnight Charcoal (Dark) Surfaces
-val WarmLinenLight = Color(0xFFFBFBFA) // Cream linen background
-val WarmSurfaceLight = Color(0xFFFFFFFF)
-val WarmSurfaceHighlightLight = Color(0xFFF3F2EE) // Soft parchment
-val TextPrimaryLight = Color(0xFF1A1A1E) // Humanistic deep graphite
-val TextSecondaryLight = Color(0xFF64666E) // Neutral slate
-
-val MidnightCharcoalDark = Color(0xFF0E1013) // Abyssal charcoal
-val CharcoalSurfaceDark = Color(0xFF17191E) // Layered dark surface
-val CharcoalSurfaceHighlightDark = Color(0xFF21242C) // Elevated dark surface
-val TextPrimaryDark = Color(0xFFF4F5F7) // Soft ice gray
-val TextSecondaryDark = Color(0xFF9CA3AF) // Fog gray
-
-// Backwards-compatible aliases
-val AmoledBlack = MidnightCharcoalDark
+// Dark / AMOLED Surfaces & Glassmorphism
+val AmoledBlack = Color(0xFF000000)
 val AmoledDeepBlack = Color(0xFF000000)
-val GlassSurface = CharcoalSurfaceDark
-val GlassSurfaceHighlight = CharcoalSurfaceHighlightDark
-val GlassBorder = Color(0x22FFFFFF)
-val TextPrimary = TextPrimaryDark
-val TextSecondary = TextSecondaryDark
+val GlassSurface = Color(0x15FFFFFF) // 15% White for translucent cards & pills
+val GlassSurfaceHighlight = Color(0x25FFFFFF) // 25% White for highlighted surfaces
+val GlassBorder = Color(0x33FFFFFF) // 20% White for subtle borders
+val TextPrimary = Color(0xFFF3F4F6)
+val TextSecondary = Color(0xFF9CA3AF)
 
 // Aurora Gradients for elements
-val AuroraPrimary = Brush.linearGradient(listOf(Color(0xFF5B45E0), Color(0xFF816EF7), Color(0xFFE06345)))
-val AuroraSecondary = Brush.linearGradient(listOf(Color(0xFF0284C7), Color(0xFF5B45E0)))
-val AuroraAmber = Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFE06345)))
-val AuroraEmerald = Brush.linearGradient(listOf(Color(0xFF059669), Color(0xFF0284C7)))
+val AuroraPrimary = Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFFEC4899)))
+val AuroraSecondary = Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF3B82F6)))
 
 // Google Theme Colors
 val GoogleLightBackground = Color(0xFFF8F9FA)
@@ -54,71 +37,34 @@ val SamsungDarkBackground = Color(0xFF000000)
 val SamsungDarkSurface = Color(0xFF1C1C1E)
 val SamsungPrimary = Color(0xFFFF9F0A)
 
-// Modern Aesthetic Note Color Codes (0L = Default)
+// Classic Dark Note Colors (0L = Default GlassSurface)
 val NoteColors = listOf(
-    0L,          // 0: Default (Obsidian Slate)
-    0xFF7C3AED,  // 1: Amethyst Violet
-    0xFF0284C7,  // 2: Cyber Sky
-    0xFF059669,  // 3: Emerald Jade
-    0xFFD97706,  // 4: Golden Amber
-    0xFFE11D48,  // 5: Rose Ruby
-    0xFF2563EB,  // 6: Royal Cobalt
-    0xFF78350F,  // 7: Warm Espresso
-    0xFFC026D3,  // 8: Neon Fuchsia
-    0xFF65A30D,  // 9: Lime Kiwi
-    0xFF4F46E5,  // 10: Deep Indigo
-    0xFF475569   // 11: Steel Slate
+    0L,          // Default
+    0xFF4A1C1C,  // Dark Red
+    0xFF4A321C,  // Dark Orange
+    0xFF4A471C,  // Dark Yellow
+    0xFF1F4A1C,  // Dark Green
+    0xFF1C4A4A,  // Dark Teal
+    0xFF1C2D4A,  // Dark Blue
+    0xFF351C4A,  // Dark Purple
+    0xFF4A1C3A,  // Dark Pink
+    0xFF33261E,  // Dark Brown
+    0xFF2B2D2F   // Dark Gray
 )
 
-/**
- * Returns a rich, tailored Brush gradient for a given note color code,
- * ensuring high contrast and modern aesthetics in both Dark and Light modes.
- */
 fun getNoteCardBrush(colorValue: Long, isDark: Boolean): Brush {
-    if (isDark) {
-        return when (colorValue) {
-            0L -> Brush.linearGradient(listOf(Color(0xFF181A20), Color(0xFF131418)))
-            0xFF7C3AED -> Brush.linearGradient(listOf(Color(0xFF2B1C44), Color(0xFF1E1332)))
-            0xFF0284C7 -> Brush.linearGradient(listOf(Color(0xFF132B3B), Color(0xFF0E1F2C)))
-            0xFF059669 -> Brush.linearGradient(listOf(Color(0xFF133224), Color(0xFF0E241A)))
-            0xFFD97706 -> Brush.linearGradient(listOf(Color(0xFF382512), Color(0xFF2A1B0D)))
-            0xFFE11D48 -> Brush.linearGradient(listOf(Color(0xFF391421), Color(0xFF2A0E18)))
-            0xFF2563EB -> Brush.linearGradient(listOf(Color(0xFF162342), Color(0xFF101930)))
-            0xFF78350F -> Brush.linearGradient(listOf(Color(0xFF2D1E16), Color(0xFF20150F)))
-            0xFFC026D3 -> Brush.linearGradient(listOf(Color(0xFF351633), Color(0xFF260F25)))
-            0xFF65A30D -> Brush.linearGradient(listOf(Color(0xFF232D12), Color(0xFF19200C)))
-            0xFF4F46E5 -> Brush.linearGradient(listOf(Color(0xFF1F1C42), Color(0xFF161330)))
-            0xFF475569 -> Brush.linearGradient(listOf(Color(0xFF21252D), Color(0xFF181B21)))
-            else -> Brush.linearGradient(listOf(Color(colorValue).copy(alpha = 0.45f), Color(colorValue).copy(alpha = 0.25f)))
-        }
+    val c = if (colorValue == 0L) {
+        if (isDark) GlassSurface else Color.White
     } else {
-        return when (colorValue) {
-            0L -> Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF9F6)))
-            0xFF7C3AED -> Brush.linearGradient(listOf(Color(0xFFF7F3FF), Color(0xFFEDE5FE)))
-            0xFF0284C7 -> Brush.linearGradient(listOf(Color(0xFFF0F9FF), Color(0xFFE0F2FE)))
-            0xFF059669 -> Brush.linearGradient(listOf(Color(0xFFECFDF5), Color(0xFFD1FAE5)))
-            0xFFD97706 -> Brush.linearGradient(listOf(Color(0xFFFFFBEB), Color(0xFFFEF3C7)))
-            0xFFE11D48 -> Brush.linearGradient(listOf(Color(0xFFFFF1F2), Color(0xFFFFE4E6)))
-            0xFF2563EB -> Brush.linearGradient(listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
-            0xFF78350F -> Brush.linearGradient(listOf(Color(0xFFFAF5F0), Color(0xFFF3EBE1)))
-            0xFFC026D3 -> Brush.linearGradient(listOf(Color(0xFFFDF4FF), Color(0xFFFAE8FF)))
-            0xFF65A30D -> Brush.linearGradient(listOf(Color(0xFFF7FEE7), Color(0xFFECFCCB)))
-            0xFF4F46E5 -> Brush.linearGradient(listOf(Color(0xFFEEF2FF), Color(0xFFE0E7FF)))
-            0xFF475569 -> Brush.linearGradient(listOf(Color(0xFFF8FAFC), Color(0xFFF1F5F9)))
-            else -> Brush.linearGradient(listOf(Color(colorValue).copy(alpha = 0.15f), Color(colorValue).copy(alpha = 0.08f)))
-        }
+        Color(colorValue)
     }
+    return Brush.linearGradient(listOf(c, c))
 }
 
-/**
- * Returns a subtle, elegant border color for cards matching their tone.
- */
 fun getNoteCardBorderColor(colorValue: Long, isDark: Boolean): Color {
     return if (isDark) {
-        if (colorValue == 0L) Color(0x18FFFFFF)
-        else Color(colorValue).copy(alpha = 0.35f)
+        if (colorValue == 0L) GlassBorder else Color(colorValue).copy(alpha = 0.5f)
     } else {
-        if (colorValue == 0L) Color(0x0F000000)
-        else Color(colorValue).copy(alpha = 0.22f)
+        if (colorValue == 0L) Color(0x1F000000) else Color(colorValue).copy(alpha = 0.3f)
     }
 }

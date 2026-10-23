@@ -5,14 +5,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,11 +17,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.BookEntity
 import app.uamo.ynotes.data.NoteEntity
-import app.uamo.ynotes.ui.theme.*
+import app.uamo.ynotes.ui.theme.GlassBorder
+import app.uamo.ynotes.utils.MarkdownLiveVisualTransformation
 import app.uamo.ynotes.utils.MediaManager
 import app.uamo.ynotes.utils.SoundManager
 import app.uamo.ynotes.utils.sharedElementTransition
@@ -86,15 +82,9 @@ fun EditorScreen(
     var bookId by remember { mutableStateOf(editingNote?.bookId ?: initialBookId) }
     var isBodyHidden by remember { mutableStateOf(editingNote?.isBodyHidden ?: false) }
     var isDeleted by remember { mutableStateOf(false) }
+    var isExiting by remember { mutableStateOf(false) }
     var isWidgetSpecial by remember { mutableStateOf(editingNote?.isWidgetSpecial ?: false) }
     var expiresAt by remember { mutableStateOf(editingNote?.expiresAt) }
-
-    // Focus mode & options sheet state
-    var isFocusMode by remember { mutableStateOf(false) }
-    var showPropertiesSheet by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }
-
-    val isDark = isSystemInDarkTheme() || LocalAppTheme.current == AppThemeType.AMOLED
 
     // Media state
     var mediaFileNames by remember {
@@ -103,6 +93,10 @@ fun EditorScreen(
         )
     }
     val mediaBitmaps = remember { mutableStateMapOf<String, Bitmap>() }
+
+    var showColorPicker by remember { mutableStateOf(false) }
+    var showBookMenu by remember { mutableStateOf(false) }
+    var showWidgetMenu by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -228,28 +222,32 @@ fun EditorScreen(
         }
     }
 
-    // Debounced save
+    // Debounced save: cancels the previous pending save and waits 500ms of silence
     fun scheduleSave() {
-        if (isDeleted) return
-        isSaving = true
+        if (isDeleted || isExiting) return
         debounceJob?.cancel()
         debounceJob = coroutineScope.launch {
             delay(500)
             if (!isDeleted && (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty())) {
                 onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
             }
-            isSaving = false
         }
     }
 
-    // Immediate save
+    // Immediate save for buttons (pin, color, book, back, check)
     fun saveNow() {
         if (isDeleted) return
         debounceJob?.cancel()
-        isSaving = false
         if (titleText.trim().isNotBlank() || bodyText.trim().isNotBlank() || mediaFileNames.isNotEmpty()) {
             onSave(stableNoteId, titleText.trim(), bodyText.trim(), noteColor, isPinned, bookId, isBodyHidden, mediaFilesString(), expiresAt, isWidgetSpecial)
         }
+    }
+
+    fun saveAndExitOnce() {
+        if (isExiting) return
+        isExiting = true
+        saveNow()
+        onNavigateBack()
     }
 
     // ──────────────────────────────────────────────
@@ -399,895 +397,585 @@ fun EditorScreen(
     }
 
     BackHandler {
-        if (isFocusMode) {
-            isFocusMode = false
-        } else {
-            saveNow()
-            onNavigateBack()
-        }
+        saveAndExitOnce()
     }
-
-    // Word and character count
-    val wordCount = remember(bodyText) {
-        if (bodyText.isBlank()) 0 else bodyText.trim().split("\\s+".toRegex()).size
-    }
-    val charCount = bodyText.length
 
     Scaffold(
         modifier = Modifier.sharedElementTransition("note-$stableNoteId"),
         containerColor = backgroundColor,
         topBar = {
-            AnimatedVisibility(
-                visible = !isFocusMode,
-                enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-            ) {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = backgroundColor,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                        actionIconContentColor = MaterialTheme.colorScheme.onBackground,
-                    ),
-                    title = {
-                        AnimatedContent(
-                            targetState = isSaving,
-                            label = "SaveStatus",
-                            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) }
-                        ) { saving ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (saving) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                if (saving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(10.dp),
-                                        strokeWidth = 1.5.dp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Guardando...",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Guardado",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            SoundManager.playTap()
-                            saveNow()
-                            onNavigateBack()
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
-                        }
-                    },
-                    actions = {
-                        // Pin button
-                        IconButton(onClick = {
-                            SoundManager.playTap()
-                            isPinned = !isPinned
-                            saveNow()
-                        }) {
-                            Icon(
-                                imageVector = if (isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                                contentDescription = if (isPinned) "Desfijar" else "Fijar",
-                                tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Options BottomSheet button
-                        IconButton(onClick = {
-                            SoundManager.playTap()
-                            showPropertiesSheet = true
-                        }) {
-                            Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = "Opciones de la nota",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Save & exit checkmark
-                        IconButton(onClick = {
-                            SoundManager.playTap()
-                            saveNow()
-                            onNavigateBack()
-                        }) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = "Guardar Nota",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = backgroundColor,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary,
+                ),
+                title = { },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        saveAndExitOnce()
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
                     }
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .padding(if (isFocusMode) PaddingValues(0.dp) else innerPadding)
-                .fillMaxSize()
-                .imePadding()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = if (isFocusMode) 40.dp else 0.dp)
-            ) {
-                // Media thumbnails strip
-                if (mediaFileNames.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(mediaFileNames) { fileName ->
-                            val bitmap = mediaBitmaps[fileName]
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (bitmap != null) {
-                                    Image(
-                                        bitmap = bitmap.asImageBitmap(),
-                                        contentDescription = "Imagen adjunta",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        coroutineScope.launch(Dispatchers.IO) {
-                                            MediaManager.deleteMediaFile(context, stableNoteId, fileName, isSecret)
-                                        }
-                                        mediaBitmaps.remove(fileName)
-                                        mediaFileNames = mediaFileNames - fileName
-                                        saveNow()
-                                    },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .size(32.dp)
-                                        .padding(4.dp)
-                                        .background(
-                                            Color.Black.copy(alpha = 0.65f),
-                                            CircleShape
-                                        )
-                                ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Eliminar imagen",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Text fields
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .weight(1f)
-                ) {
-                    if (isBooksEnabled && books.isNotEmpty()) {
-                        val currentBook = books.find { it.id == bookId }
-                        Surface(
-                            onClick = { showPropertiesSheet = true },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (currentBook != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (currentBook != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                            ),
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                    contentDescription = null,
-                                    tint = if (currentBook != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = currentBook?.let { "Cuaderno: ${it.name}" } ?: "Sin cuaderno (Toca para asignar)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (currentBook != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (titleText.isEmpty()) {
-                            Text(
-                                text = "Título",
-                                style = TextStyle(
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
-                            )
-                        }
-                        BasicTextField(
-                            value = titleText,
-                            onValueChange = { onTitleChange(it) },
-                            textStyle = TextStyle(
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            cursorBrush = SolidColor(cursorColor)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (bodyText.isEmpty()) {
-                            Text(
-                                text = "Escribe tu nota... (Soporta Markdown: **negrita**, *cursiva*, # títulos, etc.)",
-                                style = TextStyle(
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
-                            )
-                        }
-                        val onBackgroundColor = MaterialTheme.colorScheme.onBackground
-                        val visualTransformation = remember(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax) {
-                            app.uamo.ynotes.utils.MarkdownLiveVisualTransformation(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax)
-                        }
-                        BasicTextField(
-                            value = bodyTextFieldValue,
-                            onValueChange = { onBodyChange(it) },
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                color = onBackgroundColor,
-                                lineHeight = 24.sp
-                            ),
-                            modifier = Modifier.fillMaxSize(),
-                            cursorBrush = SolidColor(cursorColor),
-                            visualTransformation = visualTransformation
-                        )
-                    }
-                }
-
-                // ⚡ QUICK COMPACT MARKDOWN TOOLBAR
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Undo ("Atrás") - ALWAYS VISIBLE
-                        IconButton(
-                            onClick = {
-                                SoundManager.playTap()
-                                performUndo()
-                            },
-                            enabled = canUndo,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Undo,
-                                contentDescription = "Deshacer",
-                                modifier = Modifier.size(18.dp),
-                                tint = if (canUndo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                            )
-                        }
-
-                        // Redo ("Alante") - ALWAYS VISIBLE
-                        IconButton(
-                            onClick = {
-                                SoundManager.playTap()
-                                performRedo()
-                            },
-                            enabled = canRedo,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Redo,
-                                contentDescription = "Rehacer",
-                                modifier = Modifier.size(18.dp),
-                                tint = if (canRedo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                            )
-                        }
-
-                        VerticalDivider(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .padding(horizontal = 2.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-
-                        // ── GRUPO FORMATO DE TEXTO ──
-                        ToolbarItemButton(
-                            onClick = { wrapOrInsert("**", "**") },
-                            contentDescription = "Negrita"
-                        ) {
-                            Text(
-                                text = "B",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { wrapOrInsert("*", "*") },
-                            contentDescription = "Cursiva"
-                        ) {
-                            Text(
-                                text = "I",
-                                fontStyle = FontStyle.Italic,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { wrapOrInsert("~~", "~~") },
-                            contentDescription = "Tachado"
-                        ) {
-                            Text(
-                                text = "S",
-                                textDecoration = TextDecoration.LineThrough,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        VerticalDivider(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .padding(horizontal = 2.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-
-                        // ── GRUPO TÍTULOS ──
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("# ") },
-                            contentDescription = "Título H1"
-                        ) {
-                            Text(
-                                text = "H1",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("## ") },
-                            contentDescription = "Título H2"
-                        ) {
-                            Text(
-                                text = "H2",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("### ") },
-                            contentDescription = "Título H3"
-                        ) {
-                            Text(
-                                text = "H3",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        VerticalDivider(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .padding(horizontal = 2.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-
-                        // ── GRUPO LISTAS Y CITAS ──
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("- ") },
-                            contentDescription = "Lista con viñetas"
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("- [ ] ") },
-                            contentDescription = "Lista de tareas (Checklist)"
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Checklist,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { insertAtLineStart("> ") },
-                            contentDescription = "Cita"
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FormatQuote,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        VerticalDivider(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .padding(horizontal = 2.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-
-                        // ── GRUPO INSERTAR ──
-                        ToolbarItemButton(
-                            onClick = { wrapOrInsert("`", "`") },
-                            contentDescription = "Código en línea"
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Code,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        ToolbarItemButton(
-                            onClick = { launchImagePicker() },
-                            contentDescription = "Insertar imagen"
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Image,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        VerticalDivider(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .padding(horizontal = 2.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-
-                        // ── VISTA PREVIA MARKDOWN (SINTAXIS) ──
-                        ToolbarItemButton(
-                            onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
-                            contentDescription = if (hideMarkdownSyntax) "Sintaxis oculta (tocar para mostrar)" else "Sintaxis visible (tocar para ocultar)",
-                            containerColor = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
-                        ) {
-                            Icon(
-                                imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Stats footer (Word and character counter)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "$wordCount palabras  ·  $charCount caracteres",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    if (isWidgetSpecial) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "En Widget",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Focus Mode Floating Exit Pill
-            AnimatedVisibility(
-                visible = isFocusMode,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
-            ) {
-                Surface(
-                    onClick = { isFocusMode = false },
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                    tonalElevation = 6.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                },
+                actions = {
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        isPinned = !isPinned
+                        saveNow()
+                    }) {
                         Icon(
-                            Icons.Default.FullscreenExit,
-                            contentDescription = "Salir de enfoque",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Salir de enfoque",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Icons.Default.PushPin,
+                            contentDescription = "Fijar",
+                            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-        }
-    }
-
-    // Modal BottomSheet for Note Options & Actions
-    if (showPropertiesSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showPropertiesSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = MaterialTheme.colorScheme.surface,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 32.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "Opciones de la nota",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                // 1. Color Palette with modern gradients
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Color de nota",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        NoteColors.forEach { colorValue ->
-                            val isSelected = noteColor == colorValue
-                            val swatchBrush = getNoteCardBrush(colorValue, isDark)
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(CircleShape)
-                                    .background(swatchBrush)
-                                    .border(
-                                        width = if (isSelected) 3.dp else 1.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                                else getNoteCardBorderColor(colorValue, isDark),
-                                        shape = CircleShape
-                                    )
-                                    .clickable {
-                                        SoundManager.playTap()
-                                        noteColor = colorValue
-                                        saveNow()
-                                    },
-                                contentAlignment = Alignment.Center
+                    if (isBooksEnabled && books.isNotEmpty()) {
+                        Box {
+                            IconButton(onClick = {
+                                SoundManager.playTap()
+                                showBookMenu = true
+                            }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = "Libro",
+                                    tint = if (bookId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showBookMenu,
+                                onDismissRequest = { showBookMenu = false }
                             ) {
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = "Color seleccionado",
-                                        tint = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
+                                DropdownMenuItem(
+                                    text = { Text("Sin libro") },
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        bookId = null
+                                        showBookMenu = false
+                                        saveNow()
+                                    }
+                                )
+                                books.forEach { book ->
+                                    DropdownMenuItem(
+                                        text = { Text(book.name) },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            bookId = book.id
+                                            showBookMenu = false
+                                            saveNow()
+                                        }
                                     )
                                 }
                             }
                         }
                     }
-                }
-
-                // 2. Notebook / Folder (if enabled)
-                if (isBooksEnabled && books.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Libro / Cuaderno",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Box {
+                        IconButton(onClick = {
+                            SoundManager.playTap()
+                            showWidgetMenu = true
+                        }) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = "Widget",
+                                tint = if (isWidgetSpecial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showWidgetMenu,
+                            onDismissRequest = { showWidgetMenu = false }
                         ) {
-                            FilterChip(
-                                selected = bookId == null,
+                            DropdownMenuItem(
+                                text = { Text(if (isWidgetSpecial) "Desactivar Widget" else "Fijar en Widget") },
                                 onClick = {
                                     SoundManager.playTap()
-                                    bookId = null
+                                    isWidgetSpecial = !isWidgetSpecial
+                                    if (!isWidgetSpecial) {
+                                        expiresAt = null
+                                    }
+                                    showWidgetMenu = false
                                     saveNow()
-                                },
-                                label = { Text("Sin libro") },
-                                leadingIcon = if (bookId == null) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                } else null
+                                }
                             )
-                            books.forEach { book ->
-                                FilterChip(
-                                    selected = bookId == book.id,
+                            if (isWidgetSpecial) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("No expira", fontWeight = if (expiresAt == null) FontWeight.Bold else FontWeight.Normal) },
                                     onClick = {
                                         SoundManager.playTap()
-                                        bookId = book.id
+                                        expiresAt = null
+                                        showWidgetMenu = false
                                         saveNow()
-                                    },
-                                    label = { Text(book.name) },
-                                    leadingIcon = if (bookId == book.id) {
-                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                    } else null
+                                    }
                                 )
-                            }
-                        }
-                    }
-                }
-
-                // 3. Actions & Settings
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Column {
-                        // Focus Mode / Fullscreen
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Modo Enfoque (Pantalla completa)") },
-                            supportingContent = { Text("Oculta barras y elementos para escribir sin distracciones") },
-                            leadingContent = {
-                                Icon(Icons.Default.Fullscreen, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            modifier = Modifier.clickable {
-                                SoundManager.playTap()
-                                showPropertiesSheet = false
-                                isFocusMode = true
-                            }
-                        )
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        // Attach Media
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Adjuntar imagen") },
-                            supportingContent = {
-                                Text(
-                                    if (mediaFileNames.isEmpty()) "Añade fotos desde tu galería"
-                                    else "${mediaFileNames.size} imagen(es) adjunta(s)"
-                                )
-                            },
-                            leadingContent = {
-                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            modifier = Modifier.clickable {
-                                SoundManager.playTap()
-                                showPropertiesSheet = false
-                                launchImagePicker()
-                            }
-                        )
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        // Hide preview switch
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Ocultar previsualización") },
-                            supportingContent = { Text("Oculta el texto de la nota en la lista de notas") },
-                            leadingContent = {
-                                Icon(
-                                    if (isBodyHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = isBodyHidden,
-                                    onCheckedChange = {
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 hora") },
+                                    onClick = {
                                         SoundManager.playTap()
-                                        isBodyHidden = it
+                                        expiresAt = System.currentTimeMillis() + 3600000L
+                                        showWidgetMenu = false
+                                        saveNow()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 día") },
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        expiresAt = System.currentTimeMillis() + 86400000L
+                                        showWidgetMenu = false
+                                        saveNow()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Expira en 1 semana") },
+                                    onClick = {
+                                        SoundManager.playTap()
+                                        expiresAt = System.currentTimeMillis() + 604800000L
+                                        showWidgetMenu = false
                                         saveNow()
                                     }
                                 )
                             }
-                        )
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        // Widget special switch
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Fijar en Widget") },
-                            supportingContent = { Text("Muestra esta nota de forma destacada en la pantalla de inicio") },
-                            leadingContent = {
-                                Icon(Icons.Default.Widgets, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = isWidgetSpecial,
-                                    onCheckedChange = {
-                                        SoundManager.playTap()
-                                        isWidgetSpecial = it
-                                        if (!it) expiresAt = null
-                                        saveNow()
-                                    }
-                                )
-                            }
-                        )
-
-                        // Widget expiration chips
-                        if (isWidgetSpecial) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Tiempo de expiración en widget:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    val isNever = expiresAt == null
-                                    FilterChip(
-                                        selected = isNever,
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            expiresAt = null
-                                            saveNow()
-                                        },
-                                        label = { Text("Siempre") }
-                                    )
-                                    FilterChip(
-                                        selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) in 1..3600000L,
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            expiresAt = System.currentTimeMillis() + 3600000L
-                                            saveNow()
-                                        },
-                                        label = { Text("1 hora") }
-                                    )
-                                    FilterChip(
-                                        selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) in 3600001L..86400000L,
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            expiresAt = System.currentTimeMillis() + 86400000L
-                                            saveNow()
-                                        },
-                                        label = { Text("24 horas") }
-                                    )
-                                    FilterChip(
-                                        selected = expiresAt != null && (expiresAt!! - System.currentTimeMillis()) > 86400000L,
-                                        onClick = {
-                                            SoundManager.playTap()
-                                            expiresAt = System.currentTimeMillis() + 604800000L
-                                            saveNow()
-                                        },
-                                        label = { Text("1 semana") }
-                                    )
-                                }
-                            }
                         }
                     }
-                }
-
-                // 4. Delete Note (if editing existing note)
-                if (editingNote != null) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        showColorPicker = !showColorPicker
+                    }) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = "Color",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    ) {
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = {
-                                Text("Eliminar nota", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                            },
-                            supportingContent = {
-                                Text("Mover esta nota a la papelera", color = MaterialTheme.colorScheme.onErrorContainer)
-                            },
-                            leadingContent = {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                            },
-                            modifier = Modifier.clickable {
+                    }
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        launchImagePicker()
+                    }) {
+                        Icon(
+                            Icons.Default.AttachFile,
+                            contentDescription = "Adjuntar imagen",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        isBodyHidden = !isBodyHidden
+                        saveNow()
+                    }) {
+                        Icon(
+                            if (isBodyHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Ocultar descripción",
+                            tint = if (isBodyHidden) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (editingNote != null) {
+                        IconButton(onClick = {
+                            if (!isExiting) {
+                                isExiting = true
                                 isDeleted = true
                                 debounceJob?.cancel()
                                 onDelete(editingNote.id)
-                                showPropertiesSheet = false
                                 onNavigateBack()
                             }
+                        }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Eliminar Nota",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    IconButton(onClick = {
+                        SoundManager.playTap()
+                        saveAndExitOnce()
+                    }) {
+                        Icon(Icons.Default.Check, contentDescription = "Guardar Nota")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .imePadding()
+        ) {
+            if (showColorPicker) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    NoteColors.forEach { colorValue ->
+                        val isSelected = noteColor == colorValue
+                        val displayColor = if (colorValue == 0L)
+                            MaterialTheme.colorScheme.surfaceVariant
+                        else
+                            Color(colorValue)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(displayColor)
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                                            else GlassBorder,
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    SoundManager.playTap()
+                                    noteColor = colorValue
+                                    showColorPicker = false
+                                    saveNow()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Color seleccionado",
+                                    tint = Color.White.copy(alpha = 0.9f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Media thumbnails strip
+            if (mediaFileNames.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(mediaFileNames) { fileName ->
+                        val bitmap = mediaBitmaps[fileName]
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Imagen adjunta",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        MediaManager.deleteMediaFile(context, stableNoteId, fileName, isSecret)
+                                    }
+                                    mediaBitmaps.remove(fileName)
+                                    mediaFileNames = mediaFileNames - fileName
+                                    saveNow()
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(36.dp)
+                                    .background(
+                                        Color.Black.copy(alpha = 0.6f),
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Eliminar imagen",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .weight(1f)
+            ) {
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (titleText.isEmpty()) {
+                        Text(
+                            text = "Título",
+                            style = TextStyle(
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+                    BasicTextField(
+                        value = titleText,
+                        onValueChange = { onTitleChange(it) },
+                        textStyle = TextStyle(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        cursorBrush = SolidColor(cursorColor)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (bodyText.isEmpty()) {
+                        Text(
+                            text = "Escribe tu nota...",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+                    val onBackgroundColor = MaterialTheme.colorScheme.onBackground
+                    val visualTransformation = remember(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax) {
+                        MarkdownLiveVisualTransformation(onBackgroundColor, bodyTextFieldValue.selection.start, hideMarkdownSyntax)
+                    }
+                    BasicTextField(
+                        value = bodyTextFieldValue,
+                        onValueChange = { onBodyChange(it) },
+                        textStyle = TextStyle(
+                            fontSize = 16.sp,
+                            color = onBackgroundColor,
+                            lineHeight = 24.sp
+                        ),
+                        modifier = Modifier.fillMaxSize(),
+                        cursorBrush = SolidColor(cursorColor),
+                        visualTransformation = visualTransformation
+                    )
+                }
+            }
+
+            // Compact Markdown Formatting Bar
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            SoundManager.playTap()
+                            performUndo()
+                        },
+                        enabled = canUndo,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                            contentDescription = "Deshacer",
+                            modifier = Modifier.size(18.dp),
+                            tint = if (canUndo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            SoundManager.playTap()
+                            performRedo()
+                        },
+                        enabled = canRedo,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Redo,
+                            contentDescription = "Rehacer",
+                            modifier = Modifier.size(18.dp),
+                            tint = if (canRedo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        )
+                    }
+
+                    VerticalDivider(
+                        modifier = Modifier
+                            .height(20.dp)
+                            .padding(horizontal = 2.dp),
+                        color = GlassBorder
+                    )
+
+                    ToolbarItemButton(
+                        onClick = { wrapOrInsert("**", "**") },
+                        contentDescription = "Negrita"
+                    ) {
+                        Text(
+                            text = "B",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { wrapOrInsert("*", "*") },
+                        contentDescription = "Cursiva"
+                    ) {
+                        Text(
+                            text = "I",
+                            fontStyle = FontStyle.Italic,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { wrapOrInsert("~~", "~~") },
+                        contentDescription = "Tachado"
+                    ) {
+                        Text(
+                            text = "S",
+                            textDecoration = TextDecoration.LineThrough,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    VerticalDivider(
+                        modifier = Modifier
+                            .height(20.dp)
+                            .padding(horizontal = 2.dp),
+                        color = GlassBorder
+                    )
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("# ") },
+                        contentDescription = "Título H1"
+                    ) {
+                        Text(
+                            text = "H1",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("## ") },
+                        contentDescription = "Título H2"
+                    ) {
+                        Text(
+                            text = "H2",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("### ") },
+                        contentDescription = "Título H3"
+                    ) {
+                        Text(
+                            text = "H3",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    VerticalDivider(
+                        modifier = Modifier
+                            .height(20.dp)
+                            .padding(horizontal = 2.dp),
+                        color = GlassBorder
+                    )
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("- ") },
+                        contentDescription = "Lista con viñetas"
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("- [ ] ") },
+                        contentDescription = "Lista de tareas"
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Checklist,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { insertAtLineStart("> ") },
+                        contentDescription = "Cita"
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FormatQuote,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    ToolbarItemButton(
+                        onClick = { wrapOrInsert("`", "`") },
+                        contentDescription = "Código"
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Code,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    VerticalDivider(
+                        modifier = Modifier
+                            .height(20.dp)
+                            .padding(horizontal = 2.dp),
+                        color = GlassBorder
+                    )
+
+                    ToolbarItemButton(
+                        onClick = { hideMarkdownSyntax = !hideMarkdownSyntax },
+                        contentDescription = if (hideMarkdownSyntax) "Sintaxis oculta" else "Sintaxis visible",
+                        containerColor = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
+                    ) {
+                        Icon(
+                            imageVector = if (hideMarkdownSyntax) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (hideMarkdownSyntax) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

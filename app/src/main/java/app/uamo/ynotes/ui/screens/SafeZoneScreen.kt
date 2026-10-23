@@ -1,9 +1,13 @@
 package app.uamo.ynotes.ui.screens
 
-import androidx.compose.foundation.background
-import android.content.Context
+import android.os.SystemClock
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -13,48 +17,45 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.*
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.uamo.ynotes.data.HiddenAppEntity
 import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
-import app.uamo.ynotes.data.applySortOrder
 import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
-import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.ui.theme.AppThemeType
+import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.utils.AppInfo
-import app.uamo.ynotes.utils.getInstalledApps
-import app.uamo.ynotes.utils.rememberAppIcon
 import app.uamo.ynotes.utils.SoundManager
+import app.uamo.ynotes.utils.getInstalledApps
+import app.uamo.ynotes.utils.parseMarkdownForPreview
+import app.uamo.ynotes.utils.rememberAppIcon
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,10 +79,9 @@ fun SafeZoneScreen(
     onTrashClick: () -> Unit
 ) {
     val context = LocalContext.current
-    
+
     var showSortMenu by remember { mutableStateOf(false) }
-    var isSecurityBannerExpanded by remember { mutableStateOf(false) }
-    
+
     // All system apps — only loaded when user opens the picker dialog
     var allInstalledApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(false) }
@@ -89,6 +89,15 @@ fun SafeZoneScreen(
     var pickerSearchQuery by remember { mutableStateOf("") }
     var isAppsListExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
+
+    var lastNavClickTime by remember { mutableLongStateOf(0L) }
+    fun runSingleNav(action: () -> Unit) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavClickTime > 400L) {
+            lastNavClickTime = now
+            action()
+        }
+    }
 
     val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
     val unpinnedNotes = remember(notes) { notes.filter { !it.isPinned } }
@@ -226,8 +235,10 @@ fun SafeZoneScreen(
             }
             ExtendedFloatingActionButton(
                 onClick = {
-                    SoundManager.playTap()
-                    onAddNote()
+                    runSingleNav {
+                        SoundManager.playTap()
+                        onAddNote()
+                    }
                 },
                 icon = { Icon(Icons.Default.Lock, "Añadir Secreto") },
                 text = { Text("Nuevo secreto") },
@@ -242,73 +253,11 @@ fun SafeZoneScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Cyber Vault Security Banner - Compact & Collapsible
-            Surface(
-                onClick = {
-                    SoundManager.playTap()
-                    isSecurityBannerExpanded = !isSecurityBannerExpanded
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.07f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Security,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(4.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Bóveda Segura AES-256-GCM",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                        Icon(
-                            imageVector = if (isSecurityBannerExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (isSecurityBannerExpanded) "Contraer" else "Ver detalles",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = isSecurityBannerExpanded,
-                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.padding(top = 6.dp)) {
-                            Text(
-                                "Cifrado autenticado por hardware (AndroidKeyStore), protección activa contra capturas y purga de memoria.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Search bar + toolbar
+            // Search bar + toolbar (matching v1.0.3 minimalist layout)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
@@ -353,11 +302,19 @@ fun SafeZoneScreen(
                             )
                         }
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = {
-                                SoundManager.playTap()
-                                onSearchQueryChange("")
-                            }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(
+                                onClick = {
+                                    SoundManager.playTap()
+                                    onSearchQueryChange("")
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Limpiar búsqueda",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -426,8 +383,10 @@ fun SafeZoneScreen(
                             }
                         }
                         IconButton(onClick = {
-                            SoundManager.playTap()
-                            onTrashClick()
+                            runSingleNav {
+                                SoundManager.playTap()
+                                onTrashClick()
+                            }
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -437,8 +396,10 @@ fun SafeZoneScreen(
                         }
                         if (isBooksEnabled) {
                             IconButton(onClick = {
-                                SoundManager.playTap()
-                                onBooksClick()
+                                runSingleNav {
+                                    SoundManager.playTap()
+                                    onBooksClick()
+                                }
                             }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.MenuBook,
@@ -448,8 +409,10 @@ fun SafeZoneScreen(
                             }
                         }
                         IconButton(onClick = {
-                            SoundManager.playTap()
-                            onSettingsClick()
+                            runSingleNav {
+                                SoundManager.playTap()
+                                onSettingsClick()
+                            }
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -458,8 +421,10 @@ fun SafeZoneScreen(
                             )
                         }
                         IconButton(onClick = {
-                            SoundManager.playTap()
-                            onDeactivateSafeZone()
+                            runSingleNav {
+                                SoundManager.playTap()
+                                onDeactivateSafeZone()
+                            }
                         }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
@@ -480,7 +445,7 @@ fun SafeZoneScreen(
                     pinnedNotes = pinnedNotes,
                     unpinnedNotes = unpinnedNotes,
                     searchQuery = searchQuery,
-                    onNoteClick = onNoteClick,
+                    onNoteClick = { runSingleNav { onNoteClick(it) } },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -490,7 +455,6 @@ fun SafeZoneScreen(
             // ═══════════════════════════════════════
             if (isAppHidingEnabled == 1) {
                 if (hiddenApps.isNotEmpty()) {
-                    // Collapsible apps header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -539,10 +503,12 @@ fun SafeZoneScreen(
                                 AddAppButton(iconSize = 48, onClick = { showAppPicker = true })
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
                     }
                 } else {
-                    // No apps added yet — show add button
                     TextButton(
                         onClick = { showAppPicker = true },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -559,7 +525,7 @@ fun SafeZoneScreen(
                     pinnedNotes = pinnedNotes,
                     unpinnedNotes = unpinnedNotes,
                     searchQuery = searchQuery,
-                    onNoteClick = onNoteClick,
+                    onNoteClick = { runSingleNav { onNoteClick(it) } },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -568,7 +534,6 @@ fun SafeZoneScreen(
             // MODE 2: Reverse — apps as main grid, notes as collapsible tab
             // ═══════════════════════════════════════
             if (isAppHidingEnabled == 2) {
-                // Collapsible notes header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -603,7 +568,7 @@ fun SafeZoneScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -632,11 +597,11 @@ fun SafeZoneScreen(
                                 Card(
                                     modifier = Modifier
                                         .width(160.dp)
-                                        .clickable { onNoteClick(note) },
+                                        .clickable { runSingleNav { onNoteClick(note) } },
                                     shape = RoundedCornerShape(16.dp),
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (note.color == 0L) MaterialTheme.colorScheme.surfaceVariant
-                                                         else androidx.compose.ui.graphics.Color(note.color)
+                                                         else Color(note.color)
                                     )
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp)) {
@@ -654,17 +619,20 @@ fun SafeZoneScreen(
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 2,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         if (note.body.isNotEmpty() && !note.isBodyHidden) {
                                             Spacer(modifier = Modifier.height(4.dp))
                                             val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            val parsed = remember(note.body, bodyColor) {
+                                                parseMarkdownForPreview(note.body, bodyColor)
+                                            }
                                             Text(
-                                                text = app.uamo.ynotes.utils.parseMarkdown(note.body, bodyColor),
+                                                text = parsed,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = bodyColor,
                                                 maxLines = 2,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -672,7 +640,10 @@ fun SafeZoneScreen(
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
 
                 // Apps as main grid with bigger icons
@@ -685,7 +656,9 @@ fun SafeZoneScreen(
                         Icon(
                             imageVector = Icons.Default.Apps,
                             contentDescription = null,
-                            modifier = Modifier.size(80.dp).padding(bottom = 16.dp),
+                            modifier = Modifier
+                                .size(80.dp)
+                                .padding(bottom = 16.dp),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         )
                         Text(
@@ -726,10 +699,6 @@ fun SafeZoneScreen(
     }
 }
 
-// ──────────────────────────────────────
-// Reusable components
-// ──────────────────────────────────────
-
 @Composable
 private fun AppIconItem(
     app: HiddenAppEntity,
@@ -755,7 +724,7 @@ private fun AppIconItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .scale(scale)
-                .pointerInput(Unit) {
+                .pointerInput(app.packageName) {
                     detectTapGestures(
                         onPress = {
                             isPressed = true
@@ -807,12 +776,12 @@ private fun AppIconItem(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = if (app.name.isNotBlank()) app.name else app.packageName.substringAfterLast('.'),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                modifier = Modifier.width((iconSize + 28).dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                modifier = Modifier.width((iconSize + 20).dp),
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
@@ -895,7 +864,7 @@ private fun AddAppButton(iconSize: Int, onClick: () -> Unit) {
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Añadir",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground
         )
     }
@@ -919,7 +888,9 @@ private fun NotesContent(
             Icon(
                 imageVector = Icons.Outlined.Security,
                 contentDescription = "Bóveda vacía",
-                modifier = Modifier.size(80.dp).padding(bottom = 16.dp),
+                modifier = Modifier
+                    .size(80.dp)
+                    .padding(bottom = 16.dp),
                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
             )
             Text(
@@ -930,7 +901,7 @@ private fun NotesContent(
         }
     } else {
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Adaptive(minSize = 175.dp),
+            columns = StaggeredGridCells.Fixed(2),
             modifier = modifier,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -27,7 +27,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         pendingNavigateRoute = intent?.getStringExtra("navigate_route")
         SoundManager.init(applicationContext)
         setContent {
