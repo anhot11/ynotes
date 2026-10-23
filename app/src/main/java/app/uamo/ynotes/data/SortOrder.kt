@@ -5,8 +5,8 @@ enum class SortOrder(val label: String) {
     DATE_MODIFIED_ASC("Más antiguas"),
     DATE_CREATED_DESC("Creadas: recientes"),
     DATE_CREATED_ASC("Creadas: antiguas"),
-    NAME_ASC("Nombre A → Z"),
-    NAME_DESC("Nombre Z → A"),
+    NAME_ASC("Nombre A - Z"),
+    NAME_DESC("Nombre Z - A"),
     SIZE_DESC("Más largas"),
     SIZE_ASC("Más cortas"),
 }

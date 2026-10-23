@@ -1,4 +1,4 @@
-import java.util.Base64
+﻿import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -14,8 +14,8 @@ android {
         applicationId = "y.notes"
         minSdk = 24
         targetSdk = 34
-        versionCode = 14
-        versionName = "1.0.13"
+        versionCode = 21
+        versionName = "1.0.20"
     }
 
     signingConfigs {

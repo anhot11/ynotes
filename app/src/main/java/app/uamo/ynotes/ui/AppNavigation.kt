@@ -1,22 +1,26 @@
 package app.uamo.ynotes.ui
 
+import android.os.SystemClock
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.uamo.ynotes.ui.screens.*
 import app.uamo.ynotes.utils.SharedTransitionProvider
-import app.uamo.ynotes.utils.SharedTransitionContainer
 import app.uamo.ynotes.utils.sharedComposable
-
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 
 @Composable
 fun AppNavigation(
@@ -31,51 +35,97 @@ fun AppNavigation(
     onBiometricToggle: (Boolean) -> Unit,
     onAppHidingToggle: (Int) -> Unit,
     onThemeChanged: (Int) -> Unit,
-    onWelcomeCompleted: () -> Unit
+    onWelcomeCompleted: () -> Unit,
+    pendingDeepLinkRoute: String? = null,
+    onDeepLinkHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val activity = context as? FragmentActivity
-    
-    val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
-    val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
+
+    var lastNavTimestamp by remember { mutableLongStateOf(0L) }
+
+    fun safeNavigate(route: String, fromEntry: NavBackStackEntry? = null) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavTimestamp < 400L) return
+        if (fromEntry != null && !fromEntry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        if (navController.currentDestination?.route == route) return
+        lastNavTimestamp = now
+        navController.navigate(route) {
+            launchSingleTop = true
+        }
+    }
+
+    fun safePopBackStack(fromEntry: NavBackStackEntry? = null) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavTimestamp < 400L) return
+        if (fromEntry != null && !fromEntry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        if (navController.previousBackStackEntry != null) {
+            lastNavTimestamp = now
+            navController.popBackStack()
+        }
+    }
+
+    LaunchedEffect(pendingDeepLinkRoute) {
+        if (!pendingDeepLinkRoute.isNullOrBlank()) {
+            navController.navigate(pendingDeepLinkRoute) {
+                launchSingleTop = true
+            }
+            onDeepLinkHandled()
+        }
+    }
+
     val isBooksEnabled by viewModel.isBooksEnabled.collectAsStateWithLifecycle()
-    
-    val homeSearchQuery by viewModel.homeSearchQuery.collectAsStateWithLifecycle()
-    val homeSortOrder by viewModel.homeSortOrder.collectAsStateWithLifecycle()
-    val safeSearchQuery by viewModel.safeSearchQuery.collectAsStateWithLifecycle()
-    val safeSortOrder by viewModel.safeSortOrder.collectAsStateWithLifecycle()
-    
-    val executor = ContextCompat.getMainExecutor(context)
+    val isSafeZoneUnlocked by viewModel.isSafeZoneUnlocked.collectAsStateWithLifecycle()
+    val books by viewModel.books.collectAsStateWithLifecycle()
+
+    val executor = remember(context) { ContextCompat.getMainExecutor(context) }
+
+    val navigateToSafeZone = {
+        viewModel.unlockSafeZone()
+        safeNavigate("safe_zone")
+    }
 
     // Full safe zone request (respects biometric setting)
     val onRequestSafeZone: () -> Unit = {
-        if (activity != null) {
+        if (isBiometricEnabled.value && activity != null) {
             val biometricManager = BiometricManager.from(context)
-            if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS) {
-                val biometricPrompt = BiometricPrompt(activity, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            viewModel.unlockSafeZone()
-                            navController.navigate("safe_zone")
-                        }
-                    })
+            val canAuth = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            if (canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
+                try {
+                    val biometricPrompt = BiometricPrompt(activity, executor,
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                super.onAuthenticationSucceeded(result)
+                                navigateToSafeZone()
+                            }
+                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                super.onAuthenticationError(errorCode, errString)
+                                if (errorCode == BiometricPrompt.ERROR_HW_NOT_PRESENT ||
+                                    errorCode == BiometricPrompt.ERROR_HW_UNAVAILABLE ||
+                                    errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS) {
+                                    navigateToSafeZone()
+                                }
+                            }
+                        })
 
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Zona Segura")
-                    .setSubtitle("Confirma tu identidad para acceder")
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                    .build()
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Zona Segura")
+                        .setSubtitle("Confirma tu identidad para acceder")
+                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                        .build()
 
-                biometricPrompt.authenticate(promptInfo)
+                    biometricPrompt.authenticate(promptInfo)
+                } catch (e: Exception) {
+                    navigateToSafeZone()
+                }
             } else {
-                viewModel.unlockSafeZone()
-                navController.navigate("safe_zone")
+                navigateToSafeZone()
             }
         } else {
-            viewModel.unlockSafeZone()
-            navController.navigate("safe_zone")
+            navigateToSafeZone()
         }
     }
 
@@ -83,37 +133,41 @@ fun AppNavigation(
     val onRequestSafeZoneBiometric: () -> Unit = {
         if (activity != null) {
             val biometricManager = BiometricManager.from(context)
-            if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
-                val biometricPrompt = BiometricPrompt(activity, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            viewModel.unlockSafeZone()
-                            navController.navigate("safe_zone")
-                        }
-                    })
+            val canAuthStrong = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            val canAuthCredential = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
 
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Zona Segura")
-                    .setSubtitle("Confirma tu huella para acceder")
-                    .setNegativeButtonText("Cancelar")
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                    .build()
+            if (canAuthStrong == BiometricManager.BIOMETRIC_SUCCESS) {
+                try {
+                    val biometricPrompt = BiometricPrompt(activity, executor,
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                super.onAuthenticationSucceeded(result)
+                                navigateToSafeZone()
+                            }
+                        })
 
-                biometricPrompt.authenticate(promptInfo)
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Zona Segura")
+                        .setSubtitle("Confirma tu huella para acceder")
+                        .setNegativeButtonText("Cancelar")
+                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                        .build()
+
+                    biometricPrompt.authenticate(promptInfo)
+                } catch (e: Exception) {
+                    onRequestSafeZone()
+                }
+            } else if (canAuthCredential == BiometricManager.BIOMETRIC_SUCCESS) {
+                onRequestSafeZone()
             } else {
-                // Fallback if biometric not available
-                viewModel.unlockSafeZone()
-                navController.navigate("safe_zone")
+                navigateToSafeZone()
             }
         } else {
-            viewModel.unlockSafeZone()
-            navController.navigate("safe_zone")
+            navigateToSafeZone()
         }
     }
-
-    val isSafeZoneUnlocked by viewModel.isSafeZoneUnlocked.collectAsStateWithLifecycle()
-    val books by viewModel.books.collectAsStateWithLifecycle()
 
     LaunchedEffect(isSafeZoneUnlocked) {
         if (!isSafeZoneUnlocked) {
@@ -123,13 +177,14 @@ fun AppNavigation(
                 viewModel.books.value.find { it.id == bookId }?.isSecret == true
             } else false
 
-            if (currentRoute == "safe_zone" || 
-                currentRoute.startsWith("editor/secret") || 
-                currentRoute == "settings/safe_zone" || 
-                currentRoute == "books/secret" || 
+            if (currentRoute == "safe_zone" ||
+                currentRoute.startsWith("editor/secret") ||
+                currentRoute == "settings/safe_zone" ||
+                currentRoute == "books/secret" ||
                 isSecretBookNote) {
                 navController.navigate("home") {
                     popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
                 }
             }
         }
@@ -137,261 +192,293 @@ fun AppNavigation(
 
     SharedTransitionProvider {
         NavHost(
-            navController = navController, 
+            navController = navController,
             startDestination = startDestination,
-            enterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }) + androidx.compose.animation.fadeIn() },
-            exitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it / 4 }) + androidx.compose.animation.fadeOut() },
-            popEnterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it / 4 }) + androidx.compose.animation.fadeIn() },
-            popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) + androidx.compose.animation.fadeOut() }
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 4 }) + fadeOut() },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 4 }) + fadeIn() },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
         ) {
-            
             sharedComposable("welcome") {
-            WelcomeScreen(
-                onStart = {
-                    onWelcomeCompleted()
-                    navController.navigate("home") {
-                        popUpTo("welcome") { inclusive = true }
-                    }
-                }
-            )
-        }
-
-        sharedComposable("home") {
-            HomeScreen(
-                notes = publicNotes,
-                searchQuery = homeSearchQuery,
-                onSearchQueryChange = { viewModel.homeSearchQuery.value = it },
-                sortOrder = homeSortOrder,
-                onSortOrderChange = { viewModel.homeSortOrder.value = it },
-                safeZonePassword = safeZonePassword.value,
-                safeZoneTriggerMode = safeZoneTriggerMode.value,
-                isBiometricEnabled = isBiometricEnabled.value,
-                onRequestSafeZone = onRequestSafeZone,
-                onRequestSafeZoneBiometric = onRequestSafeZoneBiometric,
-                onAddNote = {
-                    navController.navigate("editor/public/new")
-                },
-                onNoteClick = { note ->
-                    navController.navigate("editor/public/${note.id}")
-                },
-                onSettingsClick = {
-                    navController.navigate("settings/home")
-                },
-                isBooksEnabled = isBooksEnabled,
-                books = books,
-                onBooksClick = {
-                    navController.navigate("books/public")
-                },
-                onTrashClick = {
-                    navController.navigate("trash")
-                },
-                onDeleteNotes = { ids ->
-                    viewModel.deleteNotes(ids)
-                }
-            )
-        }
-
-        sharedComposable("safe_zone") {
-            SafeZoneScreen(
-                notes = secretNotes,
-                searchQuery = safeSearchQuery,
-                onSearchQueryChange = { viewModel.safeSearchQuery.value = it },
-                sortOrder = safeSortOrder,
-                onSortOrderChange = { viewModel.safeSortOrder.value = it },
-                isAppHidingEnabled = isAppHidingEnabled.value,
-                onDeactivateSafeZone = {
-                    viewModel.lockSafeZone()
-                    navController.navigate("home") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onAddNote = {
-                    navController.navigate("editor/secret/new")
-                },
-                onNoteClick = { note ->
-                    navController.navigate("editor/secret/${note.id}")
-                },
-                onSettingsClick = {
-                    navController.navigate("settings/safe_zone")
-                },
-                isBooksEnabled = isBooksEnabled,
-                onBooksClick = {
-                    navController.navigate("books/secret")
-                },
-                onTrashClick = {
-                    navController.navigate("trash")
-                }
-            )
-        }
-
-        sharedComposable(
-            route = "editor/{type}/{noteId}?bookId={bookId}",
-            arguments = listOf(
-                navArgument("type") { type = NavType.StringType },
-                navArgument("noteId") { type = NavType.StringType },
-                navArgument("bookId") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                }
-            )
-        ) { backStackEntry ->
-            val type = backStackEntry.arguments?.getString("type") ?: "public"
-            val isSecret = type == "secret"
-            val noteId = backStackEntry.arguments?.getString("noteId")
-            val bookIdArg = backStackEntry.arguments?.getString("bookId")
-            
-            val editingNote = if (noteId != "new") {
-                if (isSecret) secretNotes.find { it.id == noteId }
-                else publicNotes.find { it.id == noteId }
-            } else null
-
-            EditorScreen(
-                editingNote = editingNote,
-                initialBookId = bookIdArg,
-                isSecret = isSecret,
-                isBooksEnabled = isBooksEnabled,
-                books = books.filter { it.isSecret == isSecret },
-                onSave = { id, title, body, color, isPinned, bookId, isBodyHidden, mediaFiles, expiresAt, isWidgetSpecial ->
-                    // id is always the stableNoteId from EditorScreen (never null)
-                    // Preserve createdAt from existing note if it exists
-                    val existingCreatedAt = if (isSecret) secretNotes.find { it.id == id }?.createdAt
-                                           else publicNotes.find { it.id == id }?.createdAt
-                    viewModel.saveNote(
-                        id = id,
-                        title = title,
-                        body = body,
-                        isSecret = isSecret,
-                        color = color,
-                        isPinned = isPinned,
-                        bookId = bookId,
-                        isBodyHidden = isBodyHidden,
-                        existingCreatedAt = existingCreatedAt,
-                        mediaFiles = mediaFiles,
-                        expiresAt = expiresAt,
-                        isWidgetSpecial = isWidgetSpecial
-                    )
-                },
-                onDelete = { id ->
-                    viewModel.deleteNote(id)
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        sharedComposable(
-            route = "settings/{from}",
-            arguments = listOf(navArgument("from") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val from = backStackEntry.arguments?.getString("from") ?: "home"
-            val isFromSafeZone = from == "safe_zone"
-            
-            SettingsScreen(
-                isFromSafeZone = isFromSafeZone,
-                currentPassword = safeZonePassword.value,
-                currentTriggerMode = safeZoneTriggerMode.value,
-                onSaveSafeZone = { newPwd, mode ->
-                    onSaveSafeZone(newPwd, mode)
-                    if (newPwd.isEmpty() && isFromSafeZone) {
+                WelcomeScreen(
+                    onStart = {
+                        onWelcomeCompleted()
                         navController.navigate("home") {
-                            popUpTo(0) { inclusive = true }
+                            popUpTo("welcome") { inclusive = true }
+                            launchSingleTop = true
                         }
                     }
-                },
-                isBiometricEnabled = isBiometricEnabled.value,
-                isAppHidingEnabled = isAppHidingEnabled.value,
-                onBiometricToggle = { enabled ->
-                    onBiometricToggle(enabled)
-                },
-                onAppHidingToggle = { mode ->
-                    onAppHidingToggle(mode)
-                },
-                currentThemeType = currentThemeType.value,
-                onThemeChanged = { newThemeIdx ->
-                    onThemeChanged(newThemeIdx)
-                },
-                isBooksEnabled = isBooksEnabled,
-                onBooksToggle = { enabled ->
-                    viewModel.toggleBooksEnabled(enabled)
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
+                )
+            }
+
+            sharedComposable("home") { backStackEntry ->
+                val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
+                val homeSearchQuery by viewModel.homeSearchQuery.collectAsStateWithLifecycle()
+                val homeSortOrder by viewModel.homeSortOrder.collectAsStateWithLifecycle()
+
+                HomeScreen(
+                    notes = publicNotes,
+                    searchQuery = homeSearchQuery,
+                    onSearchQueryChange = { viewModel.homeSearchQuery.value = it },
+                    sortOrder = homeSortOrder,
+                    onSortOrderChange = { viewModel.homeSortOrder.value = it },
+                    safeZonePassword = safeZonePassword.value,
+                    safeZoneTriggerMode = safeZoneTriggerMode.value,
+                    isBiometricEnabled = isBiometricEnabled.value,
+                    onRequestSafeZone = onRequestSafeZone,
+                    onRequestSafeZoneBiometric = onRequestSafeZoneBiometric,
+                    onAddNote = {
+                        safeNavigate("editor/public/new", backStackEntry)
+                    },
+                    onNoteClick = { note ->
+                        safeNavigate("editor/public/${note.id}", backStackEntry)
+                    },
+                    onSettingsClick = {
+                        safeNavigate("settings/home", backStackEntry)
+                    },
+                    isBooksEnabled = isBooksEnabled,
+                    books = books,
+                    onBooksClick = {
+                        safeNavigate("books/public", backStackEntry)
+                    },
+                    onTrashClick = {
+                        safeNavigate("trash", backStackEntry)
+                    },
+                    onDeleteNotes = { ids ->
+                        viewModel.deleteNotes(ids)
+                    },
+                    onRestoreNote = { id ->
+                        viewModel.restoreFromTrash(id)
+                    },
+                    onToggleWidgetSpecial = { id ->
+                        viewModel.toggleWidgetSpecial(id)
+                    },
+                    onSetNotesWidgetSpecial = { ids, isSpecial ->
+                        viewModel.setNotesWidgetSpecial(ids, isSpecial)
+                    }
+                )
+            }
+
+            sharedComposable("safe_zone") { backStackEntry ->
+                val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
+                val safeSearchQuery by viewModel.safeSearchQuery.collectAsStateWithLifecycle()
+                val safeSortOrder by viewModel.safeSortOrder.collectAsStateWithLifecycle()
+                val hiddenApps by viewModel.hiddenApps.collectAsStateWithLifecycle()
+
+                SafeZoneScreen(
+                    notes = secretNotes,
+                    searchQuery = safeSearchQuery,
+                    onSearchQueryChange = { viewModel.safeSearchQuery.value = it },
+                    sortOrder = safeSortOrder,
+                    onSortOrderChange = { viewModel.safeSortOrder.value = it },
+                    isAppHidingEnabled = isAppHidingEnabled.value,
+                    onDeactivateSafeZone = {
+                        viewModel.lockSafeZone()
+                        navController.navigate("home") {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onAddNote = {
+                        safeNavigate("editor/secret/new", backStackEntry)
+                    },
+                    onNoteClick = { note ->
+                        safeNavigate("editor/secret/${note.id}", backStackEntry)
+                    },
+                    onSettingsClick = {
+                        safeNavigate("settings/safe_zone", backStackEntry)
+                    },
+                    isBooksEnabled = isBooksEnabled,
+                    hiddenApps = hiddenApps,
+                    onToggleHiddenApp = { pkg, name -> viewModel.toggleHiddenApp(pkg, name) },
+                    onRemoveHiddenApp = { pkg -> viewModel.removeHiddenApp(pkg) },
+                    onBooksClick = {
+                        safeNavigate("books/secret", backStackEntry)
+                    },
+                    onTrashClick = {
+                        safeNavigate("trash", backStackEntry)
+                    }
+                )
+            }
+
+            sharedComposable(
+                route = "editor/{type}/{noteId}?bookId={bookId}",
+                arguments = listOf(
+                    navArgument("type") { type = NavType.StringType },
+                    navArgument("noteId") { type = NavType.StringType },
+                    navArgument("bookId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val type = backStackEntry.arguments?.getString("type") ?: "public"
+                val isSecret = type == "secret"
+                val noteId = backStackEntry.arguments?.getString("noteId")
+                val bookIdArg = backStackEntry.arguments?.getString("bookId")
+
+                // Resolve note once on entry without subscribing to continuous auto-save emissions
+                val initialNote = remember(noteId, isSecret) {
+                    if (noteId != null && noteId != "new") {
+                        val list = if (isSecret) viewModel.secretNotes.value else viewModel.publicNotes.value
+                        list.find { it.id == noteId }
+                    } else null
                 }
-            )
-        }
-
-        sharedComposable(
-            route = "books/{zone}",
-            arguments = listOf(navArgument("zone") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val zone = backStackEntry.arguments?.getString("zone") ?: "public"
-            val isSecret = zone == "secret"
-            val allBooks by viewModel.books.collectAsStateWithLifecycle()
-            val books = allBooks.filter { it.isSecret == isSecret }
-            
-            BooksScreen(
-                books = books,
-                onAddBook = { name, color ->
-                    viewModel.saveBook(id = null, name = name, color = color, iconName = "MenuBook", isSecret = isSecret)
-                },
-                onDeleteBook = { id ->
-                    viewModel.deleteBook(id)
-                },
-                onBookClick = { bookId ->
-                    navController.navigate("book_notes/$bookId")
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
+                val zoneBooks = remember(books, isSecret) {
+                    books.filter { it.isSecret == isSecret }
                 }
-            )
-        }
 
-        sharedComposable(
-            route = "book_notes/{bookId}",
-            arguments = listOf(navArgument("bookId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@sharedComposable
-            val books by viewModel.books.collectAsStateWithLifecycle()
-            val book = books.find { it.id == bookId } ?: return@sharedComposable
+                EditorScreen(
+                    editingNote = initialNote,
+                    initialBookId = bookIdArg,
+                    isSecret = isSecret,
+                    isBooksEnabled = isBooksEnabled,
+                    books = zoneBooks,
+                    onSave = { id, title, body, color, isPinned, bookId, isBodyHidden, mediaFiles, expiresAt, isWidgetSpecial ->
+                        val existingCreatedAt = initialNote?.createdAt
+                            ?: (if (isSecret) viewModel.secretNotes.value else viewModel.publicNotes.value)
+                                .find { it.id == id }?.createdAt
+                        viewModel.saveNote(
+                            id = id,
+                            title = title,
+                            body = body,
+                            isSecret = isSecret,
+                            color = color,
+                            isPinned = isPinned,
+                            bookId = bookId,
+                            isBodyHidden = isBodyHidden,
+                            existingCreatedAt = existingCreatedAt,
+                            mediaFiles = mediaFiles,
+                            expiresAt = expiresAt,
+                            isWidgetSpecial = isWidgetSpecial
+                        )
+                    },
+                    onDelete = { id ->
+                        viewModel.deleteNote(id)
+                    },
+                    onNavigateBack = {
+                        safePopBackStack(backStackEntry)
+                    }
+                )
+            }
 
-            val allNotes = if (book.isSecret) secretNotes else publicNotes
-            val bookNotes = allNotes.filter { it.bookId == bookId }
+            sharedComposable(
+                route = "settings/{from}",
+                arguments = listOf(navArgument("from") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val from = backStackEntry.arguments?.getString("from") ?: "home"
+                val isFromSafeZone = from == "safe_zone"
 
-            BookNotesScreen(
-                book = book,
-                notes = bookNotes,
-                onNoteClick = { note ->
-                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/${note.id}?bookId=${book.id}")
-                },
-                onAddNote = {
-                    navController.navigate("editor/${if (book.isSecret) "secret" else "public"}/new?bookId=${book.id}")
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
+                SettingsScreen(
+                    isFromSafeZone = isFromSafeZone,
+                    currentPassword = safeZonePassword.value,
+                    currentTriggerMode = safeZoneTriggerMode.value,
+                    onSaveSafeZone = { newPwd, mode ->
+                        onSaveSafeZone(newPwd, mode)
+                        if (newPwd.isEmpty() && isFromSafeZone) {
+                            navController.navigate("home") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    isBiometricEnabled = isBiometricEnabled.value,
+                    isAppHidingEnabled = isAppHidingEnabled.value,
+                    onBiometricToggle = { enabled ->
+                        onBiometricToggle(enabled)
+                    },
+                    onAppHidingToggle = { mode ->
+                        onAppHidingToggle(mode)
+                    },
+                    currentThemeType = currentThemeType.value,
+                    onThemeChanged = { newThemeIdx ->
+                        onThemeChanged(newThemeIdx)
+                    },
+                    isBooksEnabled = isBooksEnabled,
+                    onBooksToggle = { enabled ->
+                        viewModel.toggleBooksEnabled(enabled)
+                    },
+                    onNavigateBack = {
+                        safePopBackStack(backStackEntry)
+                    }
+                )
+            }
+
+            sharedComposable(
+                route = "books/{zone}",
+                arguments = listOf(navArgument("zone") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val zone = backStackEntry.arguments?.getString("zone") ?: "public"
+                val isSecret = zone == "secret"
+                val zoneBooks = remember(books, isSecret) {
+                    books.filter { it.isSecret == isSecret }
                 }
-            )
-        }
 
-        sharedComposable("trash") {
-            val deletedNotes by viewModel.deletedNotes.collectAsStateWithLifecycle()
-            TrashScreen(
-                deletedNotes = deletedNotes,
-                onRestore = { id ->
-                    viewModel.restoreFromTrash(id)
-                },
-                onDeletePermanently = { id ->
-                    viewModel.deleteNotePermanently(id)
-                },
-                onEmptyTrash = {
-                    viewModel.emptyTrash()
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
+                BooksScreen(
+                    books = zoneBooks,
+                    onAddBook = { name, color ->
+                        viewModel.saveBook(id = null, name = name, color = color, iconName = "MenuBook", isSecret = isSecret)
+                    },
+                    onDeleteBook = { id ->
+                        viewModel.deleteBook(id)
+                    },
+                    onBookClick = { bookId ->
+                        safeNavigate("book_notes/$bookId", backStackEntry)
+                    },
+                    onNavigateBack = {
+                        safePopBackStack(backStackEntry)
+                    }
+                )
+            }
+
+            sharedComposable(
+                route = "book_notes/{bookId}",
+                arguments = listOf(navArgument("bookId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val bookId = backStackEntry.arguments?.getString("bookId") ?: return@sharedComposable
+                val book = books.find { it.id == bookId } ?: return@sharedComposable
+
+                val publicNotes by viewModel.publicNotes.collectAsStateWithLifecycle()
+                val secretNotes by viewModel.secretNotes.collectAsStateWithLifecycle()
+                val allNotes = if (book.isSecret) secretNotes else publicNotes
+                val bookNotes = remember(allNotes, bookId) {
+                    allNotes.filter { it.bookId == bookId }
                 }
-            )
+
+                BookNotesScreen(
+                    book = book,
+                    notes = bookNotes,
+                    onNoteClick = { note ->
+                        safeNavigate("editor/${if (book.isSecret) "secret" else "public"}/${note.id}?bookId=${book.id}", backStackEntry)
+                    },
+                    onAddNote = {
+                        safeNavigate("editor/${if (book.isSecret) "secret" else "public"}/new?bookId=${book.id}", backStackEntry)
+                    },
+                    onNavigateBack = {
+                        safePopBackStack(backStackEntry)
+                    }
+                )
+            }
+
+            sharedComposable("trash") { backStackEntry ->
+                val deletedNotes by viewModel.deletedNotes.collectAsStateWithLifecycle()
+                TrashScreen(
+                    deletedNotes = deletedNotes,
+                    onRestore = { id ->
+                        viewModel.restoreFromTrash(id)
+                    },
+                    onDeletePermanently = { id ->
+                        viewModel.deleteNotePermanently(id)
+                    },
+                    onEmptyTrash = {
+                        viewModel.emptyTrash()
+                    },
+                    onNavigateBack = {
+                        safePopBackStack(backStackEntry)
+                    }
+                )
+            }
         }
-    }
     }
 }

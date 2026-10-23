@@ -31,6 +31,9 @@ interface NoteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: NoteEntity)
 
+    @Query("UPDATE notes SET isWidgetSpecial = :isSpecial, updatedAt = :timestamp WHERE id = :id")
+    suspend fun updateWidgetSpecial(id: String, isSpecial: Boolean, timestamp: Long = System.currentTimeMillis())
+
     @Query("UPDATE notes SET isDeleted = 1, updatedAt = :timestamp WHERE id = :id")
     suspend fun moveToTrash(id: String, timestamp: Long = System.currentTimeMillis())
     
@@ -55,4 +58,16 @@ interface NoteDao {
 
     @Query("UPDATE notes SET bookId = NULL WHERE bookId = :bookId")
     suspend fun removeBookFromNotes(bookId: String)
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotesDirect(): List<NoteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotes(notes: List<NoteEntity>)
+
+    @Query("SELECT * FROM books")
+    suspend fun getAllBooksDirect(): List<BookEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBooks(books: List<BookEntity>)
 }

@@ -1,5 +1,6 @@
 package app.uamo.ynotes.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,42 +10,43 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryAccentDark,
-    secondary = SecondaryAccentDark,
+    primary = PrimaryAccent,
+    secondary = SecondaryAccent,
     tertiary = TertiaryAccent,
-    background = MidnightCharcoalDark,
-    surface = CharcoalSurfaceDark,
-    surfaceVariant = CharcoalSurfaceHighlightDark,
+    background = AmoledBlack,
+    surface = AmoledBlack,
+    surfaceVariant = GlassSurface,
     onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.Black,
-    onBackground = TextPrimaryDark,
-    onSurface = TextPrimaryDark,
-    onSurfaceVariant = TextSecondaryDark,
-    outline = Color(0x24FFFFFF),
-    outlineVariant = Color(0x14FFFFFF)
+    onSecondary = Color.Black,
+    onTertiary = Color.White,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = GlassBorder
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryAccent,
     secondary = SecondaryAccent,
     tertiary = TertiaryAccent,
-    background = WarmLinenLight,
-    surface = WarmSurfaceLight,
-    surfaceVariant = WarmSurfaceHighlightLight,
+    background = Color(0xFFF3F4F6),
+    surface = Color.White,
+    surfaceVariant = Color(0xFFE5E7EB),
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onTertiary = Color.Black,
-    onBackground = TextPrimaryLight,
-    onSurface = TextPrimaryLight,
-    onSurfaceVariant = TextSecondaryLight,
-    outline = Color(0xFFE2E2DF),
-    outlineVariant = Color(0xFFEEEEEC)
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1F2937),
+    onSurface = Color(0xFF1F2937),
+    onSurfaceVariant = Color(0xFF4B5563)
 )
 
 enum class AppThemeType {
@@ -110,27 +112,38 @@ fun YNotesTheme(
                 val context = LocalContext.current
                 if (darkTheme) {
                     dynamicDarkColorScheme(context).copy(
-                        background = MidnightCharcoalDark,
-                        surface = CharcoalSurfaceDark,
-                        surfaceVariant = CharcoalSurfaceHighlightDark,
-                        onSurface = TextPrimaryDark,
-                        onSurfaceVariant = TextSecondaryDark,
-                        outline = Color(0x24FFFFFF)
+                        background = AmoledBlack,
+                        surface = AmoledBlack,
+                        surfaceVariant = GlassSurface,
+                        onSurface = TextPrimary,
+                        onSurfaceVariant = TextSecondary,
+                        outline = GlassBorder
                     )
                 } else {
-                    dynamicLightColorScheme(context).copy(
-                        background = WarmLinenLight,
-                        surface = WarmSurfaceLight,
-                        surfaceVariant = WarmSurfaceHighlightLight,
-                        onSurface = TextPrimaryLight,
-                        onSurfaceVariant = TextSecondaryLight
-                    )
+                    dynamicLightColorScheme(context)
                 }
             } else if (darkTheme) {
                 DarkColorScheme
             } else {
                 LightColorScheme
             }
+        }
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val bgArgb = colorScheme.background.toArgb()
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgArgb))
+            view.setBackgroundColor(bgArgb)
+            @Suppress("DEPRECATION")
+            window.statusBarColor = bgArgb
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = bgArgb
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

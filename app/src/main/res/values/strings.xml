@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">yNotes</string>
+    <string name="widget_name">Widget de yNotes</string>
+    <string name="widget_description">Accede a tus notas, tareas interactivas y bóveda segura desde tu pantalla de inicio</string>
+    <string name="new_note">Nueva nota</string>
+    <string name="safe_zone">Zona Segura</string>
+    <string name="trash">Papelera</string>
+    <string name="books">Cuadernos</string>
+    <string name="settings">Configuración</string>
+    <string name="search">Buscar</string>
+    <string name="pinned">Fijadas</string>
+    <string name="delete">Eliminar</string>
+    <string name="undo">Deshacer</string>
+    <string name="save">Guardar</string>
+    <string name="saved">Guardado</string>
+    <string name="saving">Guardando…</string>
+</resources>

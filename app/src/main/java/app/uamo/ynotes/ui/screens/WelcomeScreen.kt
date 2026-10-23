@@ -220,11 +220,11 @@ fun WelcomeScreen(onStart: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            MaterialTheme.colorScheme.outline
                         )
                     ) {
                         Column(
@@ -294,7 +294,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(
                                     if (isCurrent) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    else MaterialTheme.colorScheme.outline
                                 )
                         )
                     }
