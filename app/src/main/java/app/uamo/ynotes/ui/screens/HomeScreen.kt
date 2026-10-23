@@ -8,8 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,14 +37,8 @@ import app.uamo.ynotes.data.NoteEntity
 import app.uamo.ynotes.data.SortOrder
 import app.uamo.ynotes.ui.components.CustomIcons
 import app.uamo.ynotes.ui.components.NoteCard
-import app.uamo.ynotes.ui.theme.AppThemeType
 import app.uamo.ynotes.ui.theme.AuroraPrimary
-import app.uamo.ynotes.ui.theme.LocalAppTheme
 import app.uamo.ynotes.utils.SoundManager
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 enum class HomeFilter(val label: String, val icon: String) {
     ALL("Todas", "✨"),
@@ -87,9 +79,9 @@ fun HomeScreen(
     var longPressedNote by remember { mutableStateOf<NoteEntity?>(null) }
 
     var showSortMenu by remember { mutableStateOf(false) }
+    var showCategoryMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(HomeFilter.ALL) }
     var selectedBookFilterId by remember { mutableStateOf<String?>(null) }
-    var showFilterPills by remember { mutableStateOf(false) }
     var selectedNoteIds by remember { mutableStateOf(emptySet<String>()) }
     val isSelectionMode = selectedNoteIds.isNotEmpty()
 
@@ -97,6 +89,7 @@ fun HomeScreen(
         books.associate { it.id to it.name }
     }
 
+    // SafeZone Mode 0: Password entered in the search bar
     LaunchedEffect(searchQuery) {
         if (safeZoneTriggerMode == 0 && safeZonePassword.isNotEmpty() && searchQuery.trim() == safeZonePassword.trim()) {
             onSearchQueryChange("")
@@ -105,7 +98,7 @@ fun HomeScreen(
         }
     }
 
-    // Filter notes
+    // Filter notes by category chip or book filter
     val filteredByChip = remember(notes, selectedFilter, selectedBookFilterId) {
         if (selectedBookFilterId != null) {
             notes.filter { it.bookId == selectedBookFilterId }
@@ -119,23 +112,11 @@ fun HomeScreen(
         }
     }
 
-    val pinnedNotes = remember(filteredByChip) { filteredByChip.filter { it.isPinned } }
-    val unpinnedNotes = remember(filteredByChip) { filteredByChip.filter { !it.isPinned } }
-    val currentTheme = LocalAppTheme.current
-    val isDark = isSystemInDarkTheme() || currentTheme == AppThemeType.AMOLED
-
-    // Dynamic greeting & date
-    val greeting = remember {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        when (hour) {
-            in 6..12 -> "Buenos días"
-            in 13..19 -> "Buenas tardes"
-            else -> "Buenas noches"
-        }
-    }
-    val currentDateStr = remember {
-        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es", "ES"))
-        dateFormat.format(Date()).replaceFirstChar { it.uppercase() }
+    // Pinned notes float to the top naturally without disruptive full-line banners
+    val displayNotes = remember(filteredByChip) {
+        filteredByChip.sortedWith(
+            compareByDescending<NoteEntity> { it.isPinned }
+        )
     }
 
     Scaffold(
@@ -181,14 +162,14 @@ fun HomeScreen(
                             TextButton(
                                 onClick = {
                                     SoundManager.playTap()
-                                    selectedNoteIds = if (selectedNoteIds.size == filteredByChip.size) {
+                                    selectedNoteIds = if (selectedNoteIds.size == displayNotes.size) {
                                         emptySet()
                                     } else {
-                                        filteredByChip.map { it.id }.toSet()
+                                        displayNotes.map { it.id }.toSet()
                                     }
                                 }
                             ) {
-                                Text(if (selectedNoteIds.size == filteredByChip.size) "Deseleccionar" else "Todas")
+                                Text(if (selectedNoteIds.size == displayNotes.size) "Deseleccionar" else "Todas")
                             }
 
                             if (onSetNotesWidgetSpecial != null) {
@@ -315,572 +296,410 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // 🌟 HERO HEADER: Identity, Greeting & Glass Actions
-            Column(
+            // ── TOP BAR: Sleek, Minimalist Dual Pills ──
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "yNotes",
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = (-0.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "$greeting · $currentDateStr",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Glass Header Action Buttons
-                    Row(
-                        modifier = Modifier.wrapContentWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isBooksEnabled) {
-                            HeaderGlassButton(
-                                icon = Icons.AutoMirrored.Filled.MenuBook,
-                                contentDescription = "Cuadernos",
-                                onClick = onBooksClick
-                            )
-                        }
-                        HeaderGlassButton(
-                            icon = Icons.Default.DeleteOutline,
-                            contentDescription = "Papelera",
-                            onClick = onTrashClick
-                        )
-                        HeaderGlassButton(
-                            icon = Icons.Default.Settings,
-                            contentDescription = "Ajustes",
-                            onClick = onSettingsClick,
-                            onLongPress = {
-                                if (safeZoneTriggerMode == 2) {
-                                    if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                    else onRequestSafeZone()
-                                }
-                            }
-                        )
-                    }
-                }
-
-                // Stats capsule badge
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${notes.size} notas guardadas",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium
-                            )
-                            if (pinnedNotes.isNotEmpty()) {
-                                Text(
-                                    text = "  ·  ${notes.count { it.isPinned }} fijadas",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 🔍 DEDICATED SLEEK SEARCH BAR
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-            ) {
-                Row(
+                // Left Pill: Search Input
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 0.dp
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = {
-                                        SoundManager.playTap()
-                                    },
-                                    onLongPress = {
-                                        SoundManager.playTap()
-                                        if (safeZoneTriggerMode == 1) {
-                                            if (isBiometricEnabled) onRequestSafeZoneBiometric()
-                                            else onRequestSafeZone()
-                                        }
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Buscar",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
+                            contentDescription = "Buscar notas",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = { SoundManager.playTap() },
+                                        onLongPress = {
+                                            SoundManager.playTap()
+                                            if (safeZoneTriggerMode == 1) {
+                                                if (isBiometricEnabled) onRequestSafeZoneBiometric()
+                                                else onRequestSafeZone()
+                                            }
+                                        }
+                                    )
+                                }
                         )
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (searchQuery.isEmpty()) {
-                            Text(
-                                text = "Buscar por título, contenido o palabra clave...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Buscar notas",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                textStyle = TextStyle(
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                singleLine = true
                             )
                         }
-                        BasicTextField(
-                            value = searchQuery,
-                            onValueChange = onSearchQueryChange,
-                            textStyle = TextStyle(
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            singleLine = true
-                        )
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = {
+                                    SoundManager.playTap()
+                                    onSearchQueryChange("")
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Limpiar búsqueda",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
+                }
 
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Right Pill: Action Controls (Sort, Categories, Trash, Settings)
+                Surface(
+                    modifier = Modifier.height(52.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 0.dp
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 1. Sort Button
+                        Box {
+                            IconButton(onClick = {
                                 SoundManager.playTap()
-                                onSearchQueryChange("")
-                            },
-                            modifier = Modifier.size(32.dp)
+                                showSortMenu = true
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = "Ordenar",
+                                    tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false }
+                            ) {
+                                Text(
+                                    text = "Ordenar por",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                                SortOrder.entries.forEach { order ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = order.label,
+                                                color = if (sortOrder == order)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (sortOrder == order) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            onSortOrderChange(order)
+                                            showSortMenu = false
+                                        },
+                                        leadingIcon = if (sortOrder == order) ({
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }) else null
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Categories / Cuadernos Button
+                        Box {
+                            IconButton(onClick = {
+                                SoundManager.playTap()
+                                showCategoryMenu = true
+                            }) {
+                                Icon(
+                                    imageVector = if (selectedFilter != HomeFilter.ALL || selectedBookFilterId != null)
+                                        Icons.Default.FilterList
+                                    else
+                                        Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = "Categorías",
+                                    tint = if (selectedFilter != HomeFilter.ALL || selectedBookFilterId != null)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showCategoryMenu,
+                                onDismissRequest = { showCategoryMenu = false }
+                            ) {
+                                Text(
+                                    text = "Categorías",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                                HomeFilter.entries.forEach { filter ->
+                                    val isSelected = selectedFilter == filter && selectedBookFilterId == null
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${filter.icon}  ${filter.label}",
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                                val count = when (filter) {
+                                                    HomeFilter.ALL -> notes.size
+                                                    HomeFilter.PINNED -> notes.count { it.isPinned }
+                                                    HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
+                                                    HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
+                                                }
+                                                Spacer(modifier = Modifier.width(16.dp))
+                                                Text(
+                                                    text = "$count",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            selectedFilter = filter
+                                            selectedBookFilterId = null
+                                            showCategoryMenu = false
+                                        },
+                                        leadingIcon = if (isSelected) ({
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }) else null
+                                    )
+                                }
+
+                                if (isBooksEnabled) {
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                    Text(
+                                        text = "Cuadernos",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                    )
+                                    books.forEach { book ->
+                                        val isSelected = selectedBookFilterId == book.id
+                                        val count = notes.count { it.bookId == book.id }
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "📖  ${book.name}",
+                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                    Spacer(modifier = Modifier.width(16.dp))
+                                                    Text(
+                                                        text = "$count",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                SoundManager.playTap()
+                                                selectedBookFilterId = if (selectedBookFilterId == book.id) null else book.id
+                                                showCategoryMenu = false
+                                            },
+                                            leadingIcon = if (isSelected) ({
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }) else null
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Administrar cuadernos",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        },
+                                        onClick = {
+                                            SoundManager.playTap()
+                                            showCategoryMenu = false
+                                            onBooksClick()
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Settings,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 3. Trash Button
+                        IconButton(onClick = {
+                            SoundManager.playTap()
+                            onTrashClick()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Papelera",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // 4. Settings Button (with Mode 2 SafeZone long-press)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            SoundManager.playTap()
+                                            onSettingsClick()
+                                        },
+                                        onLongPress = {
+                                            SoundManager.playTap()
+                                            if (safeZoneTriggerMode == 2) {
+                                                if (isBiometricEnabled) onRequestSafeZoneBiometric()
+                                                else onRequestSafeZone()
+                                            }
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Limpiar búsqueda",
-                                modifier = Modifier.size(18.dp),
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Configuración",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-
-                    // Toggle filter pills button
-                    IconButton(
-                        onClick = {
-                            SoundManager.playTap()
-                            showFilterPills = !showFilterPills
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = if (showFilterPills) "Ocultar filtros" else "Mostrar filtros",
-                            tint = if (showFilterPills || selectedFilter != HomeFilter.ALL || selectedBookFilterId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Sort menu button
-                    Box {
-                        IconButton(
-                            onClick = {
-                                SoundManager.playTap()
-                                showSortMenu = true
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = "Ordenar notas",
-                                tint = if (sortOrder != SortOrder.DATE_MODIFIED_DESC) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false }
-                        ) {
-                            Text(
-                                text = "Ordenar por",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                            )
-                            SortOrder.entries.forEach { order ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = order.label,
-                                            fontWeight = if (sortOrder == order) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (sortOrder == order) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    onClick = {
-                                        SoundManager.playTap()
-                                        onSortOrderChange(order)
-                                        showSortMenu = false
-                                    },
-                                    leadingIcon = if (sortOrder == order) ({
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }) else null
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
-            // 🏷️ INTERACTIVE FILTER PILLS ROW (Collapsible to save vertical space)
-            AnimatedVisibility(
-                visible = showFilterPills || selectedFilter != HomeFilter.ALL || selectedBookFilterId != null,
-                enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-                exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
-            ) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items(HomeFilter.entries) { filter ->
-                        val isSelected = selectedFilter == filter && selectedBookFilterId == null
-                        val count = when (filter) {
-                            HomeFilter.ALL -> notes.size
-                            HomeFilter.PINNED -> notes.count { it.isPinned }
-                            HomeFilter.WITH_MEDIA -> notes.count { it.mediaFiles.isNotBlank() }
-                            HomeFilter.WIDGET -> notes.count { it.isWidgetSpecial }
-                        }
+            Spacer(modifier = Modifier.height(2.dp))
 
-                        Surface(
-                            onClick = {
-                                SoundManager.playTap()
-                                selectedFilter = filter
-                                selectedBookFilterId = null
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${filter.icon} ${filter.label}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
-                                ) {
-                                    Text(
-                                        text = "$count",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (isBooksEnabled && books.isNotEmpty()) {
-                        items(books, key = { it.id }) { book ->
-                            val isSelected = selectedBookFilterId == book.id
-                            val count = notes.count { it.bookId == book.id }
-
-                            Surface(
-                                onClick = {
-                                    SoundManager.playTap()
-                                    if (selectedBookFilterId == book.id) {
-                                        selectedBookFilterId = null
-                                        selectedFilter = HomeFilter.ALL
-                                    } else {
-                                        selectedBookFilterId = book.id
-                                    }
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "📖 ${book.name}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant
-                                    ) {
-                                        Text(
-                                            text = "$count",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 📋 MAIN NOTES STAGGERED GRID OR INSPIRING EMPTY STATE
-            if (filteredByChip.isEmpty()) {
+            // ── MAIN NOTES STAGGERED GRID (2-Column "cuadro" layout) ──
+            if (displayNotes.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 32.dp, vertical = 48.dp),
+                        .padding(horizontal = 32.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
+                    Icon(
+                        imageVector = Icons.Outlined.Description,
+                        contentDescription = "Sin notas",
                         modifier = Modifier
-                            .size(96.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                            .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CustomIcons.NotebookEditOutline,
-                            contentDescription = "Sin notas",
-                            modifier = Modifier.size(46.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
+                            .size(72.dp)
+                            .padding(bottom = 16.dp),
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f)
+                    )
                     Text(
                         text = if (searchQuery.isNotBlank()) "Sin resultados para \"$searchQuery\""
                         else if (selectedBookFilterId != null) "No hay notas en \"${booksMap[selectedBookFilterId] ?: "este cuaderno"}\""
                         else if (selectedFilter != HomeFilter.ALL) "No hay notas en ${selectedFilter.label}"
-                        else "Tu espacio creativo está listo",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.3).sp
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground
+                        else "Todavía no hay notas. ¡Añade una!",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f)
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = if (searchQuery.isNotBlank()) "Prueba con otra palabra clave o revisa los filtros."
-                        else "Captura pensamientos, listas y proyectos con privacidad total, Markdown fluido y cifrado local.",
-                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(28.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(AuroraPrimary)
-                            .clickable { onAddNote() }
-                            .padding(horizontal = 24.dp, vertical = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Escribir mi primera nota",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             } else {
                 LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Adaptive(minSize = 175.dp),
+                    columns = StaggeredGridCells.Fixed(2),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 8.dp,
+                        top = 6.dp,
                         bottom = if (isSelectionMode) 96.dp else 88.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp
                 ) {
-                    if (pinnedNotes.isNotEmpty()) {
-                        item(span = StaggeredGridItemSpan.FullLine) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 4.dp)
-                            ) {
-                                Text(
-                                    "FIJADAS",
-                                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    shape = CircleShape
-                                ) {
-                                    Text(
-                                        "${pinnedNotes.size}",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                    items(displayNotes, key = { it.id }) { note ->
+                        val isSelected = selectedNoteIds.contains(note.id)
+                        NoteCard(
+                            note = note,
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                } else {
+                                    onNoteClick(note)
                                 }
-                            }
-                        }
-                        items(pinnedNotes, key = { it.id }) { note ->
-                            val isSelected = selectedNoteIds.contains(note.id)
-                            NoteCard(
-                                note = note,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                    } else {
-                                        onNoteClick(note)
-                                    }
-                                },
-                                onLongPress = {
-                                    if (isSelectionMode) {
-                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                    } else {
-                                        longPressedNote = note
-                                    }
-                                },
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                bookName = note.bookId?.let { booksMap[it] }
-                            )
-                        }
-                    }
-
-                    if (unpinnedNotes.isNotEmpty()) {
-                        if (pinnedNotes.isNotEmpty()) {
-                            item(span = StaggeredGridItemSpan.FullLine) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 14.dp)
-                                ) {
-                                    Text(
-                                        "OTRAS NOTAS",
-                                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = CircleShape
-                                    ) {
-                                        Text(
-                                            "${unpinnedNotes.size}",
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                            },
+                            onLongPress = {
+                                if (isSelectionMode) {
+                                    selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
+                                } else {
+                                    longPressedNote = note
                                 }
-                            }
-                        }
-                        items(unpinnedNotes, key = { it.id }) { note ->
-                            val isSelected = selectedNoteIds.contains(note.id)
-                            NoteCard(
-                                note = note,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                    } else {
-                                        onNoteClick(note)
-                                    }
-                                },
-                                onLongPress = {
-                                    if (isSelectionMode) {
-                                        selectedNoteIds = if (isSelected) selectedNoteIds - note.id else selectedNoteIds + note.id
-                                    } else {
-                                        longPressedNote = note
-                                    }
-                                },
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                bookName = note.bookId?.let { booksMap[it] }
-                            )
-                        }
+                            },
+                            isSelected = isSelected,
+                            isSelectionMode = isSelectionMode,
+                            bookName = note.bookId?.let { booksMap[it] }
+                        )
                     }
                 }
             }
         }
     }
 
+    // Long press quick action sheet on a note
     if (longPressedNote != null) {
         val note = longPressedNote!!
         ModalBottomSheet(
@@ -992,43 +811,6 @@ fun HomeScreen(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun HeaderGlassButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)? = null
-) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-        modifier = Modifier
-            .size(38.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = {
-                        SoundManager.playTap()
-                        onClick()
-                    },
-                    onLongPress = {
-                        SoundManager.playTap()
-                        onLongPress?.invoke()
-                    }
-                )
-            }
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(19.dp)
-            )
         }
     }
 }

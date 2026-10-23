@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.VpnKey
@@ -108,7 +109,7 @@ fun NoteCard(
         label = "borderWidth"
     )
 
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(22.dp)
     val cardBrush = remember(note.color, isDark) {
         getNoteCardBrush(note.color, isDark)
     }
@@ -150,8 +151,8 @@ fun NoteCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp)
-                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                        .height(125.dp)
+                        .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 ) {
                     Image(
                         bitmap = firstBitmap!!.asImageBitmap(),
@@ -242,7 +243,7 @@ fun NoteCard(
                                     modifier = Modifier
                                         .size(15.dp)
                                         .padding(end = 4.dp)
-                                )
+                                 )
                             }
                             if (note.isPinned) {
                                 Surface(
@@ -276,12 +277,15 @@ fun NoteCard(
                     )
                 }
 
-                // Body Markdown snippet
+                // Body Markdown snippet with remember caching for 60/120fps scrolling
                 if (note.body.isNotEmpty() && !note.isBodyHidden) {
                     if (note.title.isNotEmpty()) Spacer(modifier = Modifier.height(6.dp))
                     val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    val parsedBody = remember(note.body, bodyColor) {
+                        parseMarkdownForPreview(note.body, bodyColor)
+                    }
                     Text(
-                        text = parseMarkdown(note.body, bodyColor),
+                        text = parsedBody,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = 21.sp
                         ),
@@ -293,7 +297,7 @@ fun NoteCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Bottom Meta Row: Date, Word count, Vault indicator
+                // Bottom Meta Row: Date, Photo indicator, Vault indicator & Document Icon
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -307,14 +311,21 @@ fun NoteCard(
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (note.isSecret) {
+                        if (mediaFileNames.isNotEmpty()) {
                             Icon(
-                                Icons.Default.VpnKey,
-                                contentDescription = "Nota cifrada",
+                                imageVector = Icons.Default.Photo,
+                                contentDescription = "Fotos adjuntas",
                                 modifier = Modifier.size(13.dp),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
+                            Spacer(modifier = Modifier.width(5.dp))
                         }
+                        Icon(
+                            imageVector = if (note.isSecret) Icons.Default.VpnKey else Icons.Default.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = (if (note.isSecret) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.45f)
+                        )
                     }
                 }
             }
